@@ -4,8 +4,8 @@
  */
 export const site = {
   name: "Shane Chan",
-  tagline: "Placeholder tagline — a short line about what you do",
+  tagline: "Lead Backend Developer",
   description:
-    "Placeholder description — one or two sentences for search results and link previews.",
+    "Lead Backend Developer at the Defence Science and Technology Agency, building scalable microservices on AWS.",
   url: "https://shanecsj.dev",
 } as const;

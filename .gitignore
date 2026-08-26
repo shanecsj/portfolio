@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Source resume documents — contain personal details (phone number) that must
+# not be published. Site content lives in src/content/resume.ts instead.
+*.pdf
