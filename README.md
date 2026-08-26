@@ -97,7 +97,6 @@ Knobs worth turning:
 The whole list is sent to the browser and the random pick happens there, so
 "Try another" is instant and doesn't re-hit the upstream API.
 
-`/eatwhere` was the original path; `next.config.ts` 308-redirects it to `/eatwhat`.
 
 ## Deploying
 
