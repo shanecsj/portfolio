@@ -19,6 +19,7 @@
   --color-faint: var(--faint);
   --color-rule: var(--rule);
   --color-accent: var(--accent);
+  --color-brand: var(--brand);
 }
 
 :root {
@@ -29,6 +30,7 @@
   --faint: #8a8a94;
   --rule: #e3e3e6;
   --accent: #1f4fd8;
+  --brand: #015568;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +42,9 @@
     --faint: #71717c;
     --rule: #26262d;
     --accent: #86a9ff;
+    /* #015568 only reaches 2.3:1 on this background. #4fb3c9 is the same hue
+       lightened to 8.1:1, mirroring the light-mode ratio. */
+    --brand: #4fb3c9;
   }
 }
 

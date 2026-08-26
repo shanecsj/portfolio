@@ -20,8 +20,10 @@ export function SiteHeader() {
         <Link
           href="/"
           /* No bold utility here — Pacifico has only weight 400. Default
-             line-height leaves room for the descender on the trailing "j". */
-          className="font-script text-2xl text-ink hover:text-accent"
+             line-height leaves room for the descender on the trailing "j".
+             Hover dims rather than switching colour, so it stays in the brand
+             hue instead of jumping to the blue link accent. */
+          className="font-script text-2xl text-brand transition-opacity hover:opacity-75"
         >
           {site.handle}
         </Link>
