@@ -9,4 +9,5 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Resume" },
+  { href: "/eatwhere", label: "Eat where" },
 ];
