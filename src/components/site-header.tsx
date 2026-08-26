@@ -10,15 +10,20 @@ export function SiteHeader() {
 
   return (
     <header className="border-b border-rule">
+      {/* Full-width rather than centred on the content column, so the handle
+          sits hard against the left gutter. py-3 keeps the bar the same height
+          as before now that the script face is larger. */}
       <nav
         aria-label="Main"
-        className="mx-auto flex max-w-2xl items-center justify-between gap-4 px-6 py-5"
+        className="flex items-center justify-between gap-4 px-6 py-3"
       >
         <Link
           href="/"
-          className="text-sm font-semibold tracking-tight text-ink hover:text-accent"
+          /* No bold utility here — Pacifico has only weight 400. Default
+             line-height leaves room for the descender on the trailing "j". */
+          className="font-script text-2xl text-ink hover:text-accent"
         >
-          {site.name}
+          {site.handle}
         </Link>
 
         {/* Hidden until there is more than one destination to choose between. */}

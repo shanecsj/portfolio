@@ -8,6 +8,9 @@
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
+  /* Theme key is deliberately not --font-pacifico; that would resolve to
+     var(--font-pacifico) referencing itself. */
+  --font-script: var(--font-pacifico), "Brush Script MT", cursive;
 
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);

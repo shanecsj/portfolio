@@ -4,6 +4,8 @@
  */
 export const site = {
   name: "Shane Chan",
+  /** Lowercase handle shown in the site header. */
+  handle: "shanecsj",
   tagline: "Lead Backend Developer",
   description:
     "Lead Backend Developer at the Defence Science and Technology Agency, building scalable microservices on AWS.",
