@@ -66,8 +66,14 @@ around somewhere you aren't:
 - via "Use another place", always visible;
 - via "Change", once an origin is set.
 
-Results are shown as a list to pick from rather than auto-selecting the top hit —
-"Springfield" returns six US cities, and guessing would be worse than asking.
+Search is confined to Singapore (`COUNTRY_CODES` in `nominatim.ts` — widen it to
+`"sg,my"` and so on). Unrestricted, Nominatim ranks globally by importance, so
+"Orchard Road" returned English villages ahead of the Singapore one.
+
+Results are still shown as a list to pick from rather than auto-selecting the top
+hit, since one query can match several real places. Rows naming the same place at
+the same address are collapsed first — a mall mapped as a relation plus two nodes
+would otherwise appear three times, identically.
 
 ### Data sources
 
@@ -93,6 +99,7 @@ Knobs worth turning:
 - Which places count as food — `AMENITIES` in `overpass.ts`.
 - Result cap — `MAX_RESULTS` in `overpass.ts`.
 - Number of search matches offered — `MAX_MATCHES` in `nominatim.ts`.
+- Countries the search covers — `COUNTRY_CODES` in `nominatim.ts`.
 
 The whole list is sent to the browser and the random pick happens there, so
 "Try another" is instant and doesn't re-hit the upstream API.

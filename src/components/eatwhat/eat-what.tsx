@@ -297,7 +297,7 @@ export function EatWhat() {
               htmlFor="location-query"
               className="text-xs font-semibold tracking-[0.14em] text-faint uppercase"
             >
-              Search a location
+              Search a location in Singapore
             </label>
             <div className="mt-2 flex flex-wrap gap-2">
               <input
@@ -331,7 +331,8 @@ export function EatWhat() {
 
             {searchStatus === "done" && matches.length === 0 ? (
               <p className="mt-3 text-sm text-muted">
-                No location matched that. Try a town, postcode, or landmark.
+                Nothing in Singapore matched that. Try an estate, MRT
+                station, mall, or postcode.
               </p>
             ) : null}
 
