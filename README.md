@@ -22,7 +22,7 @@ npm run lint
 | `src/app/layout.tsx` | Shared shell: font, metadata, header, footer. |
 | `src/app/globals.css` | Theme tokens. Colours swap on `prefers-color-scheme`. |
 | `src/app/hello/` | Template for a new page. Copy it, or delete it. |
-| `src/app/eatwhere/` | "Eat where?" — randomises a nearby food place. See below. |
+| `src/app/eatwhat/` | "Eat what?" — randomises a food place near you or any searched location. See below. |
 
 Sections with an empty array in `resume.ts` are skipped by the page automatically.
 
@@ -36,36 +36,68 @@ serverless on Vercel — no separate service to deploy.
 
 Needs persistence? Attach Vercel Postgres or Vercel KV from the Vercel dashboard.
 
-## /eatwhere
+## /eatwhat
 
-Asks the browser for your location, looks up food places around you, and picks one
-at random.
+Looks up food places around a point and picks one at random. The point is your
+device's location, or any place you search for by name.
 
 | Path | What it is |
 | --- | --- |
-| `src/app/eatwhere/page.tsx` | Server-rendered shell: heading, blurb, data-source note. |
-| `src/components/eatwhere/eat-where.tsx` | The only client code — geolocation, fetch, randomising. |
-| `src/app/api/eatwhere/route.ts` | `GET ?lat=&lon=&radius=` → `{ places, center, radiusMeters }`. |
-| `src/lib/eatwhere/overpass.ts` | Data source. **Swap this file to change providers.** |
-| `src/lib/eatwhere/types.ts` | The `Place` shape every provider normalises into. |
+| `src/app/eatwhat/page.tsx` | Server-rendered shell: heading, blurb, data-source note. |
+| `src/components/eatwhat/eat-what.tsx` | The only client code — geolocation, search, fetch, randomising. |
+| `src/app/api/eatwhat/route.ts` | `GET ?lat=&lon=&radius=` → `{ places, center, radiusMeters }`. |
+| `src/app/api/eatwhat/geocode/route.ts` | `GET ?q=` → `{ matches }`. Turns a typed place name into coordinates. |
+| `src/lib/eatwhat/overpass.ts` | Food lookup. **Swap this file to change providers.** |
+| `src/lib/eatwhat/nominatim.ts` | Location search. Swap independently of the food lookup. |
+| `src/lib/eatwhat/types.ts` | `Place` and `LocationMatch` — the shapes providers normalise into. |
+| `src/lib/eatwhat/user-agent.ts` | Sent to both OSM services. Overpass 406s without it. |
 
-Data comes from OpenStreetMap via the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
-— free, no API key, so the feature works on a fresh clone with nothing configured.
-The trade-off is crowd-sourced coverage: no ratings, no photos, opening hours usually
-missing, and the public endpoints are rate-limited.
+### Where the location comes from
+
+The component holds one `Origin`: either `{ kind: "device" }` from the browser's
+geolocation, or `{ kind: "named" }` from a search. Both feed the same lookup, so
+the food side never knows or cares which was used.
+
+Searching is offered three ways, because geolocation fails more often than you'd
+think — blocked permission, a desktop with no GPS, or simply wanting to plan
+around somewhere you aren't:
+
+- automatically, when geolocation is denied or unavailable (the panel opens itself);
+- via "Use another place", always visible;
+- via "Change", once an origin is set.
+
+Results are shown as a list to pick from rather than auto-selecting the top hit —
+"Springfield" returns six US cities, and guessing would be worse than asking.
+
+### Data sources
+
+Both are OpenStreetMap and both are keyless, so the feature works on a fresh clone
+with nothing configured:
+
+- [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API) for the food lookup.
+- [Nominatim](https://nominatim.org/) for location search.
+
+The trade-off is crowd-sourced coverage: no ratings, no photos, opening hours
+usually missing, and both services are rate-limited (Overpass allows two
+concurrent slots per IP; Nominatim asks for at most one request per second, which
+is why the search box submits rather than querying per keystroke).
 
 To move to Google Places or Foursquare, rewrite `fetchNearbyPlaces` in
-`overpass.ts` to return `Place[]`; nothing else needs to change. Put the key in a
+`overpass.ts` to return `Place[]`; nothing else needs to change. Location search
+swaps the same way via `searchLocations` in `nominatim.ts`. Put any key in a
 Vercel environment variable, never in the repo.
 
 Knobs worth turning:
 
-- Radius choices — `RADIUS_OPTIONS` in `eat-where.tsx` (API allows 200–5000 m).
+- Radius choices — `RADIUS_OPTIONS` in `eat-what.tsx` (API allows 200–5000 m).
 - Which places count as food — `AMENITIES` in `overpass.ts`.
 - Result cap — `MAX_RESULTS` in `overpass.ts`.
+- Number of search matches offered — `MAX_MATCHES` in `nominatim.ts`.
 
 The whole list is sent to the browser and the random pick happens there, so
 "Try another" is instant and doesn't re-hit the upstream API.
+
+`/eatwhere` was the original path; `next.config.ts` 308-redirects it to `/eatwhat`.
 
 ## Deploying
 

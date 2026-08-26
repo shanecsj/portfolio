@@ -1,10 +1,11 @@
 import type { Place } from "./types";
+import { USER_AGENT } from "./user-agent";
 
 /**
  * Nearby-food provider backed by OpenStreetMap through the Overpass API.
  *
  * Picked for the prototype because it needs no API key and no billing account,
- * so /eatwhere works on a fresh clone and on a Vercel preview with nothing
+ * so /eatwhat works on a fresh clone and on a Vercel preview with nothing
  * configured. Moving to Google Places later means rewriting this file only —
  * the route handler and the UI both speak `Place`.
  *
@@ -26,9 +27,6 @@ const ENDPOINTS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
 ];
-
-/** Required — see the header comment in `postWithTimeout`. */
-const USER_AGENT = "shanecsj.dev/eatwhere (https://shanecsj.dev)";
 
 /**
  * Per-endpoint budget. A warm query answers in about a second; anything past

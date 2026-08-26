@@ -1,9 +1,9 @@
 import type { NextRequest } from "next/server";
-import { fetchNearbyPlaces } from "@/lib/eatwhere/overpass";
-import type { ApiError, NearbyPlacesResult } from "@/lib/eatwhere/types";
+import { fetchNearbyPlaces } from "@/lib/eatwhat/overpass";
+import type { ApiError, NearbyPlacesResult } from "@/lib/eatwhat/types";
 
 /**
- * GET /api/eatwhere?lat=&lon=&radius=
+ * GET /api/eatwhat?lat=&lon=&radius=
  *
  * Returns every nearby food place; the client does the randomising so that
  * "try another" is instant and doesn't re-hit the upstream API.
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       radiusMeters: radius,
     } satisfies NearbyPlacesResult);
   } catch (error) {
-    console.error("[eatwhere] lookup failed", error);
+    console.error("[eatwhat] lookup failed", error);
     return Response.json(
       {
         // Almost always rate-limiting on the free Overpass instance rather

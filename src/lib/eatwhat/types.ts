@@ -1,5 +1,5 @@
 /**
- * The shape the /eatwhere UI speaks. Providers (Overpass today, Google Places
+ * The shape the /eatwhat UI speaks. Providers (Overpass today, Google Places
  * or Foursquare later) normalise into this, so swapping the data source never
  * reaches the component.
  */
@@ -24,3 +24,21 @@ export type NearbyPlacesResult = {
 };
 
 export type ApiError = { error: string };
+
+/**
+ * A place the visitor searched for by name, used as the centre of the food
+ * lookup when geolocation is denied, unavailable, or simply not what they
+ * wanted (planning tonight's dinner from the office, say).
+ */
+export type LocationMatch = {
+  /** Nominatim's place_id. Unique, and present on every result. */
+  id: string;
+  /** Heading, e.g. "VivoCity". */
+  name: string;
+  /** What distinguishes it from the other matches, e.g. "Bukit Merah, Singapore". */
+  context: string;
+  lat: number;
+  lon: number;
+};
+
+export type GeocodeResult = { matches: LocationMatch[] };
