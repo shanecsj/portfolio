@@ -7,5 +7,5 @@ export const site = {
   tagline: "Placeholder tagline — a short line about what you do",
   description:
     "Placeholder description — one or two sentences for search results and link previews.",
-  url: "https://shanecsj.me",
+  url: "https://shanecsj.dev",
 } as const;

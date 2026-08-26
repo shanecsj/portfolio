@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 /**
- * Template for a new page. To add shanecsj.me/newfeature:
+ * Template for a new page. To add shanecsj.dev/newfeature:
  *   1. copy this folder to src/app/newfeature/
  *   2. add { href: "/newfeature", label: "New feature" } to src/config/nav.ts
  *

@@ -1,4 +1,4 @@
-# shanecsj.me
+# shanecsj.dev
 
 Personal site and resume. Next.js (App Router) + TypeScript + Tailwind, deployed on Vercel.
 
