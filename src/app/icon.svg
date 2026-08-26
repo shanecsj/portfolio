@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Unown S">
+  <!--
+    Site icon: the letter S drawn in the style of Unown, the Pokémon whose
+    forms are letter-shaped glyphs, each "entirely black except its large white
+    eye with a small black pupil" and built by attaching strokes to that eye.
+    Drawn from scratch to that description rather than traced from official art.
+
+    Three things here are load-bearing at 16px, which is the size that actually
+    matters for a browser tab:
+
+    - The tile. A black glyph on a transparent background vanishes against dark
+      browser chrome — only the white eye survives. The near-white tile reads as
+      the backing on dark chrome and disappears into light chrome, so the glyph
+      is legible either way without needing a theme-aware icon (which Safari
+      ignores anyway).
+    - The eye sits at the free end of the top hook. Fusing it into the upper
+      bowl instead closes the counter and the whole thing reads as a "g".
+    - The white ring is wide relative to the pupil. At 16px it is the ring, not
+      the pupil, that says "eye" rather than "hole".
+  -->
+  <rect width="64" height="64" rx="14" fill="#f4f4f3"/>
+  <path d="M45 21 C45 12 21 11 21 21 C21 29 43 31 43 41 C43 51 19 50 19 42"
+        fill="none" stroke="#17171a" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="45" cy="20" r="15" fill="#17171a"/>
+  <circle cx="45" cy="20" r="10" fill="#ffffff"/>
+  <circle cx="45" cy="20" r="4.2" fill="#17171a"/>
+</svg>
