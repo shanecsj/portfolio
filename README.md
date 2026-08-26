@@ -1,34 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# shanecsj.me
 
-## Getting Started
+Personal site and resume. Next.js (App Router) + TypeScript + Tailwind, deployed on Vercel.
 
-First, run the development server:
+## Develop
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run build    # catches type errors; dev does not
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Where things live
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Path | What it is |
+| --- | --- |
+| `src/content/resume.ts` | **All resume content.** Editing the resume means editing only this file. |
+| `src/config/site.ts` | Name, tagline, description, canonical URL (drives SEO metadata). |
+| `src/config/nav.ts` | Nav items. Also drives `sitemap.xml`. |
+| `src/app/page.tsx` | Resume page — renders `resume.ts`, holds no content of its own. |
+| `src/app/layout.tsx` | Shared shell: font, metadata, header, footer. |
+| `src/app/globals.css` | Theme tokens. Colours swap on `prefers-color-scheme`. |
+| `src/app/hello/` | Template for a new page. Copy it, or delete it. |
 
-## Learn More
+Sections with an empty array in `resume.ts` are skipped by the page automatically.
 
-To learn more about Next.js, take a look at the following resources:
+## Adding a feature at /newfeature
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. `cp -r src/app/hello src/app/newfeature` and edit it.
+2. Add `{ href: "/newfeature", label: "New feature" }` to `src/config/nav.ts`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Needs a backend? Add `src/app/api/newfeature/route.ts` exporting `GET`/`POST`. It runs
+serverless on Vercel — no separate service to deploy.
 
-## Deploy on Vercel
+Needs persistence? Attach Vercel Postgres or Vercel KV from the Vercel dashboard.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploying
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Pushes to `main` deploy to production automatically; every other branch gets a preview URL.
+
+**This repo is public — never commit secrets.** API keys belong in Vercel project
+environment variables, not in the repo or in `next.config.ts`.
