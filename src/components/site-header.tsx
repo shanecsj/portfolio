@@ -15,7 +15,7 @@ export function SiteHeader() {
           as before now that the script face is larger. */}
       <nav
         aria-label="Main"
-        className="flex items-center justify-between gap-4 px-6 py-3"
+        className="flex items-center justify-between gap-4 px-6 py-3 sm:px-12"
       >
         <Link
           href="/"

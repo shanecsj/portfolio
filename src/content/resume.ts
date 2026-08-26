@@ -95,7 +95,7 @@ export const resume: Resume = {
           bullets: [
             "Led and mentored a team of backend engineers, fostering collaboration and ensuring adherence to best practices in microservices development",
             "Directed the design and implementation of new features, maintaining a clean and scalable codebase to meet evolving business needs",
-            "Led operations and support (O&S) for live backend systems, proactively addressing issues and ensuring 95% system uptime",
+            "Led operations and support (O&S) for live backend systems, proactively addressing issues and ensuring more than 95% system uptime",
             "Made strategic decisions to future-proof the application, focusing on scalability, maintainability, and alignment with long-term business objectives",
             "Oversaw and managed all CI/CD pipeline changes in GitLab, rigorously reviewing features and updates to ensure smooth and error-free deployments on AWS",
           ],
@@ -158,7 +158,7 @@ export const resume: Resume = {
     { group: "Languages", items: ["Java", "Python", "SQL", "JavaScript"] },
     {
       group: "Frameworks",
-      items: ["Spring Boot", "Hibernate", "Elide", "Pandas", "React.js"],
+      items: ["Spring Boot", "Hibernate", "Pandas", "React.js"],
     },
     {
       group: "Cloud",
@@ -169,6 +169,7 @@ export const resume: Resume = {
         "API Gateway",
         "CloudWatch",
         "Secrets Manager",
+        "KMS",
       ],
     },
   ],
