@@ -104,11 +104,20 @@ const TOTAL_BUDGET_MS = 25_000;
 const MIN_ATTEMPT_MS = 1_500;
 
 /**
- * Enough to randomise over without pulling a whole city centre. Overpass
- * applies the cap in its own order, not by distance, so a dense area gets an
- * arbitrary 80 of what's around — fine for a randomiser, not for "the nearest".
+ * How many places are sent to the browser.
+ *
+ * The cap is applied here rather than by Overpass. `out center 80` used to do
+ * it, but Overpass applies a limit in its own order — roughly element id, so
+ * by when a place was mapped — which is a real bias, not a random sample, and
+ * it was already biting: Orchard within 500 m holds 142 places and we were
+ * keeping an arbitrary 80 of them.
+ *
+ * Asking for the whole band instead costs little where it matters. The worst
+ * case measured, Orchard within 3 km, is 2,663 elements and 912 KB, which
+ * Overpass answers in about 3.5s; only the trimmed set crosses the wire to the
+ * browser, at roughly 50 KB.
  */
-const MAX_RESULTS = 80;
+const MAX_RESULTS = 150;
 
 /**
  * OSM `amenity` values we count as "somewhere you can eat". Deliberately not
@@ -144,9 +153,11 @@ type OverpassElement = {
 function buildQuery(lat: number, lon: number, radiusMeters: number): string {
   const amenities = AMENITIES.join("|");
   return [
-    "[out:json][timeout:20];",
+    "[out:json][timeout:25];",
     `nwr[amenity~"^(${amenities})$"][name](around:${radiusMeters},${lat},${lon});`,
-    `out center ${MAX_RESULTS};`,
+    // Unlimited on purpose — see MAX_RESULTS. The band floor and the trim are
+    // both applied here, where distance is actually known.
+    "out center;",
   ].join("\n");
 }
 
@@ -220,7 +231,10 @@ async function postWithTimeout(
   }
 }
 
-type CacheEntry = { places: Place[]; storedAt: number };
+type CacheEntry = { places: Place[]; totalFound: number; storedAt: number };
+
+/** What a lookup yields: the sample sent on, and how big the band really is. */
+export type NearbyPlaces = { places: Place[]; totalFound: number };
 
 /**
  * Module scope, so a warm serverless instance answers repeats without touching
@@ -229,8 +243,13 @@ type CacheEntry = { places: Place[]; storedAt: number };
  */
 const cache = new Map<string, CacheEntry>();
 
-function cacheKey(lat: number, lon: number, radiusMeters: number): string {
-  return `${lat.toFixed(CACHE_PRECISION)},${lon.toFixed(CACHE_PRECISION)},${radiusMeters}`;
+function cacheKey(
+  lat: number,
+  lon: number,
+  minMeters: number,
+  radiusMeters: number,
+): string {
+  return `${lat.toFixed(CACHE_PRECISION)},${lon.toFixed(CACHE_PRECISION)},${minMeters}-${radiusMeters}`;
 }
 
 /**
@@ -249,7 +268,29 @@ function remeasure(places: Place[], lat: number, lon: number): Place[] {
     .sort((a, b) => a.distanceMeters - b.distanceMeters);
 }
 
-function readCache(key: string): Place[] | null {
+/**
+ * Trims a band to `MAX_RESULTS` by sampling it uniformly at random.
+ *
+ * Not "the nearest N", which would be wrong for a band: the 1.5-3 km ring
+ * around Orchard holds thousands, and its nearest 150 all sit within a few
+ * metres of the 1.5 km floor. Choosing to go by car and only ever being sent
+ * to the closest edge of the band defeats the point of having bands. A uniform
+ * sample keeps the spread, which is what the randomiser then draws from.
+ *
+ * Partial Fisher-Yates: shuffles only the prefix it needs.
+ */
+function sample(places: Place[], size: number): Place[] {
+  if (places.length <= size) return places;
+
+  const pool = [...places];
+  for (let i = 0; i < size; i++) {
+    const j = i + Math.floor(Math.random() * (pool.length - i));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, size);
+}
+
+function readCache(key: string): CacheEntry | null {
   const entry = cache.get(key);
   if (!entry) return null;
 
@@ -262,11 +303,11 @@ function readCache(key: string): Place[] | null {
   // rather than merely the oldest.
   cache.delete(key);
   cache.set(key, entry);
-  return entry.places;
+  return entry;
 }
 
-function writeCache(key: string, places: Place[]): void {
-  cache.set(key, { places, storedAt: Date.now() });
+function writeCache(key: string, places: Place[], totalFound: number): void {
+  cache.set(key, { places, totalFound, storedAt: Date.now() });
 
   while (cache.size > CACHE_MAX_ENTRIES) {
     const oldest = cache.keys().next();
@@ -276,7 +317,9 @@ function writeCache(key: string, places: Place[]): void {
 }
 
 /**
- * Places within `radiusMeters` of the given point, nearest first.
+ * Places in the band `minMeters`-`radiusMeters` around the given point,
+ * nearest first, sampled down to `MAX_RESULTS` if the band is dense.
+ *
  * Throws only if every endpoint fails — the route handler turns that into a
  * 502. The thrown message names what each one did, because a single "last
  * error" hid the primary's failure behind whichever fallback spoke last.
@@ -285,10 +328,16 @@ export async function fetchNearbyPlaces(
   lat: number,
   lon: number,
   radiusMeters: number,
-): Promise<Place[]> {
-  const key = cacheKey(lat, lon, radiusMeters);
+  minMeters = 0,
+): Promise<NearbyPlaces> {
+  const key = cacheKey(lat, lon, minMeters, radiusMeters);
   const cached = readCache(key);
-  if (cached) return remeasure(cached, lat, lon);
+  if (cached) {
+    return {
+      places: remeasure(cached.places, lat, lon),
+      totalFound: cached.totalFound,
+    };
+  }
 
   const query = buildQuery(lat, lon, radiusMeters);
   const failures: string[] = [];
@@ -320,10 +369,16 @@ export async function fetchNearbyPlaces(
       }
 
       const body = (await response.json()) as { elements?: OverpassElement[] };
+      // Overpass bounded the outer edge; the floor is applied here, against
+      // the distance to each place's own centre. No upper filter: `around`
+      // matches any part of an element, so a large mall can sit just outside
+      // the radius by its centre point, and dropping it would be pedantic.
       return (body.elements ?? [])
         .map((element) => toPlace(element, lat, lon))
-        .filter((place): place is Place => place !== null)
-        .sort((a, b) => a.distanceMeters - b.distanceMeters);
+        .filter(
+          (place): place is Place =>
+            place !== null && place.distanceMeters >= minMeters,
+        );
     } catch (error) {
       failures.push(String(error));
       return null;
@@ -351,8 +406,11 @@ export async function fetchNearbyPlaces(
   }
 
   if (Array.isArray(result)) {
-    writeCache(key, result);
-    return result;
+    const places = sample(result, MAX_RESULTS).sort(
+      (a, b) => a.distanceMeters - b.distanceMeters,
+    );
+    writeCache(key, places, result.length);
+    return { places, totalFound: result.length };
   }
 
   throw new Error(`All Overpass endpoints failed. ${failures.join("; ")}`);

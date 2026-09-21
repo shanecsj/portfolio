@@ -3,7 +3,7 @@ import { fetchNearbyPlaces } from "@/lib/eatwhat/overpass";
 import type { ApiError, NearbyPlacesResult } from "@/lib/eatwhat/types";
 
 /**
- * GET /api/eatwhat?lat=&lon=&radius=
+ * GET /api/eatwhat?lat=&lon=&radius=&min=
  *
  * Returns every nearby food place; the client does the randomising so that
  * "try another" is instant and doesn't re-hit the upstream API.
@@ -19,7 +19,8 @@ import type { ApiError, NearbyPlacesResult } from "@/lib/eatwhat/types";
 export const maxDuration = 30;
 
 const DEFAULT_RADIUS_M = 1000;
-const MIN_RADIUS_M = 200;
+/** Low enough for the walkable band, whose outer edge is only 300 m. */
+const MIN_RADIUS_M = 100;
 const MAX_RADIUS_M = 5000;
 
 function badRequest(message: string) {
@@ -46,12 +47,27 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // `min` turns the disc into a band, so "by car" stops suggesting the cafe
+  // next door. Absent means a plain disc from zero.
+  const rawMin = params.get("min");
+  const min = rawMin === null ? 0 : Number(rawMin);
+  if (!Number.isFinite(min) || min < 0 || min >= radius) {
+    return badRequest("`min` must be a number between 0 and `radius`.");
+  }
+
   try {
-    const places = await fetchNearbyPlaces(lat, lon, radius);
+    const { places, totalFound } = await fetchNearbyPlaces(
+      lat,
+      lon,
+      radius,
+      min,
+    );
     return Response.json({
       places,
       center: { lat, lon },
+      minMeters: min,
       radiusMeters: radius,
+      totalFound,
     } satisfies NearbyPlacesResult);
   } catch (error) {
     console.error("[eatwhat] lookup failed", error);

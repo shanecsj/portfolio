@@ -8,7 +8,18 @@ import {
   toggle,
   type Filters,
 } from "@/lib/eatwhat/filter";
-import { formatDistance, mapsUrl } from "@/lib/eatwhat/format";
+import {
+  directionsUrl,
+  formatBand,
+  formatBandFrom,
+  formatDistance,
+} from "@/lib/eatwhat/format";
+import {
+  bandFor,
+  DEFAULT_MODE,
+  TRAVEL_BANDS,
+  type TravelMode,
+} from "@/lib/eatwhat/travel";
 import { PlaceFilters } from "@/components/eatwhat/place-filters";
 import type {
   ApiError,
@@ -17,9 +28,6 @@ import type {
   NearbyPlacesResult,
   Place,
 } from "@/lib/eatwhat/types";
-
-/** Radius choices, in metres. Must stay inside the API's 200–5000 bounds. */
-const RADIUS_OPTIONS = [500, 1000, 2000] as const;
 
 /** Where we search from: the device's own fix, or somewhere typed in. */
 type Origin =
@@ -77,7 +85,7 @@ function pickRandom(places: Place[], avoid: Place | null): Place {
 }
 
 export function EatWhat() {
-  const [radius, setRadius] = useState<number>(1000);
+  const [mode, setMode] = useState<TravelMode>(DEFAULT_MODE);
   const [origin, setOrigin] = useState<Origin | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [places, setPlaces] = useState<Place[]>([]);
@@ -87,6 +95,10 @@ export function EatWhat() {
   // property of one search. Options are recomputed per result set, and a
   // selection that no longer matches anything still renders, showing 0.
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  // How many places the band really holds. Above MAX_RESULTS the server sends
+  // a random sample, and the result line says so rather than implying the pick
+  // came from everything nearby.
+  const [totalFound, setTotalFound] = useState(0);
 
   // Manual location search.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -99,6 +111,7 @@ export function EatWhat() {
   const busy = status === "locating" || status === "searching";
   /** What the randomiser is actually drawing from, after the chips. */
   const pool = applyFilters(places, filters);
+  const band = bandFor(mode);
 
   function openSearch() {
     setSearchOpen(true);
@@ -111,17 +124,20 @@ export function EatWhat() {
    * The food lookup itself. Takes the origin explicitly — state set earlier in
    * the same handler would not have flushed yet.
    */
-  async function runLookup(from: Origin, withRadius: number) {
+  async function runLookup(from: Origin, withMode: TravelMode) {
+    const band = bandFor(withMode);
     setStatus("searching");
     setError(null);
     setPick(null);
     setPlaces([]);
+    setTotalFound(0);
 
     try {
       const params = new URLSearchParams({
         lat: String(from.lat),
         lon: String(from.lon),
-        radius: String(withRadius),
+        radius: String(band.maxMeters),
+        min: String(band.minMeters),
       });
       const response = await fetch(`/api/eatwhat?${params}`);
       const body: NearbyPlacesResult | ApiError = await response.json();
@@ -132,14 +148,16 @@ export function EatWhat() {
         return;
       }
 
-      const found = (body as NearbyPlacesResult).places;
+      const result = body as NearbyPlacesResult;
+      const found = result.places;
       if (found.length === 0) {
         setError(
-          `Nothing on the map within ${formatDistance(withRadius)} of ${originLabel(from)}. Try a wider radius, or a different spot.`,
+          `Nothing on the map ${formatBandFrom(band, originLabel(from))}. Try another way of getting there, or a different spot.`,
         );
         setStatus("error");
         return;
       }
+      setTotalFound(result.totalFound);
 
       setPlaces(found);
       // Filters survive the new lookup, so the first pick has to respect them.
@@ -157,7 +175,7 @@ export function EatWhat() {
   /** Main button. Reuses a chosen origin; otherwise asks the device. */
   async function handleEatWhat() {
     if (origin) {
-      await runLookup(origin, radius);
+      await runLookup(origin, mode);
       return;
     }
 
@@ -171,7 +189,7 @@ export function EatWhat() {
         lon: position.coords.longitude,
       };
       setOrigin(next);
-      await runLookup(next, radius);
+      await runLookup(next, mode);
     } catch (locationError) {
       // Denied or unavailable is not a dead end — offer the way round it
       // immediately rather than making them hunt for it.
@@ -195,7 +213,7 @@ export function EatWhat() {
       };
       setOrigin(next);
       setSearchOpen(false);
-      await runLookup(next, radius);
+      await runLookup(next, mode);
     } catch (locationError) {
       setError(geolocationMessage(locationError));
       setStatus("error");
@@ -244,7 +262,7 @@ export function EatWhat() {
     setMatches([]);
     setQuery("");
     setSearchStatus("idle");
-    await runLookup(next, radius);
+    await runLookup(next, mode);
   }
 
   function handleReroll() {
@@ -269,14 +287,14 @@ export function EatWhat() {
     <div>
       <fieldset disabled={busy} className="mt-8">
         <legend className="text-xs font-semibold tracking-[0.14em] text-faint uppercase">
-          Within
+          Getting there
         </legend>
         <div className="mt-3 flex flex-wrap gap-2">
-          {RADIUS_OPTIONS.map((option) => {
-            const selected = option === radius;
+          {TRAVEL_BANDS.map((option) => {
+            const selected = option.id === mode;
             return (
               <label
-                key={option}
+                key={option.id}
                 className={
                   selected
                     ? "cursor-pointer rounded-full border border-ink bg-ink px-4 py-1.5 text-sm text-canvas"
@@ -285,17 +303,23 @@ export function EatWhat() {
               >
                 <input
                   type="radio"
-                  name="radius"
-                  value={option}
+                  name="mode"
+                  value={option.id}
                   checked={selected}
-                  onChange={() => setRadius(option)}
+                  onChange={() => setMode(option.id)}
                   className="sr-only"
                 />
-                {formatDistance(option)}
+                {option.label}
               </label>
             );
           })}
         </div>
+        {/* The band is spelled out, because "By MRT" is a label for a distance
+            rather than a routed journey and should not pretend otherwise. */}
+        <p className="mt-2.5 text-xs text-faint">
+          Looking {formatBand(band)}
+          {band.minMeters > 0 ? ", skipping what is closer" : ""}
+        </p>
       </fieldset>
 
       {/* Current origin, and the way to change it. Always reachable — someone
@@ -447,8 +471,8 @@ export function EatWhat() {
         {status === "ready" && !pick ? (
           <div className="rounded-xl border border-rule p-6">
             <p className="text-sm leading-relaxed text-muted">
-              Nothing within {formatDistance(radius)}
-              {origin ? ` of ${originLabel(origin)}` : ""} matches that filter.
+              Nothing {formatBandFrom(band, origin ? originLabel(origin) : null)}{" "}
+              matches that filter.
               {places.length > 0
                 ? ` There ${places.length === 1 ? "is" : "are"} ${places.length} place${places.length === 1 ? "" : "s"} here without it.`
                 : ""}
@@ -484,22 +508,32 @@ export function EatWhat() {
               >
                 Try another
               </button>
-              <a
-                href={mapsUrl(pick)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-accent hover:underline"
-              >
-                Open in Maps
-              </a>
+              {origin ? (
+                <a
+                  href={directionsUrl(pick, origin, band)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-accent hover:underline"
+                >
+                  {band.id === "walk"
+                    ? "Walking directions"
+                    : band.id === "car"
+                      ? "Driving directions"
+                      : "Transit directions"}
+                </a>
+              ) : null}
             </div>
 
             <p className="mt-5 font-mono text-xs text-faint">
               picked from {pool.length}
               {hasFilters(filters) ? ` of ${places.length}` : ""} place
-              {pool.length === 1 && !hasFilters(filters) ? "" : "s"} within{" "}
-              {formatDistance(radius)}
-              {origin ? ` of ${originLabel(origin)}` : ""}
+              {pool.length === 1 && !hasFilters(filters) ? "" : "s"}{" "}
+              {formatBandFrom(band, origin ? originLabel(origin) : null)}
+              {/* Only when the band was too dense to send whole, so the number
+                  above is not mistaken for everything that is out there. */}
+              {totalFound > places.length
+                ? ` · sampled from ${totalFound} nearby`
+                : ""}
             </p>
           </div>
         ) : null}

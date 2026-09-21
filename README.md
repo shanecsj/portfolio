@@ -54,6 +54,7 @@ device's location, or any place you search for by name.
 | `src/components/eatwhat/place-filters.tsx` | The two rows of chips that narrow the pick. |
 | `src/lib/eatwhat/distance.ts` | Haversine, shared by the food sort and the geocoder merge. |
 | `src/lib/eatwhat/filter.ts` | Filter logic: options, counts, and applying a selection. |
+| `src/lib/eatwhat/travel.ts` | The four travel modes and the distance band each means. |
 | `src/lib/eatwhat/cuisine.ts` | Folds OSM's 1,911 cuisine values into ~20 filterable groups. |
 | `src/lib/eatwhat/types.ts` | `Place` and `LocationMatch` — the shapes providers normalise into. |
 | `src/lib/eatwhat/user-agent.ts` | Sent to both OSM services. Overpass 406s without it. |
@@ -104,6 +105,55 @@ Kopitiam in most estates, and those are genuinely different destinations.
 
 Either provider may fail without failing the search; the route only 502s when
 both are unreachable.
+
+### How far to go
+
+The first choice is not a radius but a travel mode — Walkable, By bus, By MRT,
+By car — because a distance in metres is not how anyone decides where lunch is.
+Each mode is a **band**, not a disc, so it excludes what the easier mode already
+covers:
+
+| Mode | Band | Maps `travelmode` |
+| --- | --- | --- |
+| Walkable | 0 – 300 m | `walking` |
+| By bus | 300 – 800 m | `transit` |
+| By MRT | 800 m – 1.5 km | `transit` |
+| By car | 1.5 – 3 km | `driving` |
+
+Banding is the point. As plain discs, "By car" would be "everything walkable,
+plus more", and the nearest places would dominate every pick — choosing to drive
+and being sent to the cafe 200 m away is a non-answer. The bands are deliberately
+tight; Singapore is dense enough that 3 km is already a ten-minute drive.
+
+Be honest about what this models. A radius is a crude proxy for a bus or train
+journey, which really means "near a stop", not "within N metres". The label names
+the mode that makes the distance reasonable; the UI spells out the actual band
+underneath rather than implying a routed journey. Real transit isochrones would
+be a separate feature.
+
+The result links to Google Maps **directions** by the chosen mode, from the
+search origin, rather than to a search pin — picking "By MRT" is a statement
+about how you intend to get there, so the link honours it.
+
+### Sampling dense areas
+
+`MAX_RESULTS` (150) is applied here, not by Overpass. `out center 80` used to do
+it, but Overpass applies a limit in its own order — roughly element id, so by
+when a place was mapped — which is a bias rather than a sample, and it was
+already biting before any of this: Orchard within 500 m holds 142 places and the
+old code kept an arbitrary 80.
+
+So the query is now unlimited and the trim happens where distance is known. The
+worst case measured, Orchard within 3 km, is 2,663 elements and 912 KB, which
+Overpass answers in about 3.5s; only the trimmed set crosses the wire, at roughly
+50 KB.
+
+The trim is a **uniform random sample, not the nearest N**. For a band those are
+very different: the 1.5–3 km ring around Orchard holds thousands, and its nearest
+150 all sit within metres of the 1.5 km floor, so "nearest" would collapse the
+band back to its inner edge. When sampling happens the result line says
+`sampled from 2,238 nearby`, so the count above it is not mistaken for everything
+out there.
 
 ### Narrowing the pick
 
@@ -220,9 +270,9 @@ logs and falls back to searching unauthenticated — a degraded search beats non
 
 Knobs worth turning:
 
-- Radius choices — `RADIUS_OPTIONS` in `eat-what.tsx` (API allows 200–5000 m).
+- Travel modes and their bands — `TRAVEL_BANDS` in `travel.ts` (API allows 100–5000 m).
 - Which places count as food — `AMENITIES` in `overpass.ts`.
-- Result cap — `MAX_RESULTS` in `overpass.ts`.
+- How many places are sampled and sent — `MAX_RESULTS` in `overpass.ts`.
 - Lookup cache lifetime and size — `CACHE_TTL_MS` / `CACHE_MAX_ENTRIES` in `overpass.ts`.
 - How long to wait on a queued Overpass — `PRIMARY_TIMEOUT_MS` in `overpass.ts`.
 - Number of search matches offered — `MAX_MATCHES` in `geocode.ts`.

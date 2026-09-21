@@ -27,7 +27,17 @@ export type Place = {
 export type NearbyPlacesResult = {
   places: Place[];
   center: { lat: number; lon: number };
+  /** Band floor. Places nearer than this belong to an easier travel mode. */
+  minMeters: number;
+  /** Band ceiling. */
   radiusMeters: number;
+  /**
+   * How many places the band actually holds, before any sampling. Equal to
+   * `places.length` unless the area was too dense to send in full — Orchard
+   * within 3 km is over 2,600 — in which case the UI says so rather than
+   * implying the pick came from a complete list.
+   */
+  totalFound: number;
 };
 
 export type ApiError = { error: string };

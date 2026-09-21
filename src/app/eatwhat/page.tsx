@@ -4,7 +4,7 @@ import { EatWhat } from "@/components/eatwhat/eat-what";
 export const metadata: Metadata = {
   title: "Eat what?",
   description:
-    "Can't decide where to eat? Pick a radius, use your location or search for one, and get a random food place nearby.",
+    "Can't decide where to eat? Say how far you'll go — walking, bus, MRT or car — use your location or search for one, and get a random food place with directions.",
   alternates: { canonical: "/eatwhat" },
 };
 
