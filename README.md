@@ -116,6 +116,41 @@ opening hours usually missing, and both OSM services are rate-limited (Overpass
 allows two concurrent slots per IP; Nominatim asks for at most one request per
 second, which is why the search box submits rather than querying per keystroke).
 
+#### Surviving Overpass
+
+Overpass is the flakiest part of the feature, and "The places service is busy"
+almost always traces back to its two-slots-per-IP limit. Four things in
+`overpass.ts` exist purely to absorb that, all of them worth knowing before
+touching the timeouts:
+
+- **It queues rather than refuses.** Passing the slot limit makes Overpass hold
+  the connection until a slot frees, so a slow answer is usually an answer on
+  its way. The per-endpoint timeout was once 8s, which measured 9.2s on a
+  queued request that then succeeded — it was discarding results it had already
+  waited most of the way for. The primary now gets 12s.
+- **Results are cached** for 30 minutes, keyed on the centre rounded to ~11 m
+  plus the radius, with distances recomputed from the caller's true position on
+  a hit. Repeat lookups cost no rate-limit slot at all.
+- **429/503/504 trigger a backoff and retry** of the primary, not a fallthrough
+  to the other endpoints. `lz4.` and `z.` are the same project behind the same
+  per-IP limit, so after a 429 they only time out — that path used to cost 14s
+  to learn nothing.
+- **The whole lookup is bounded** by `TOTAL_BUDGET_MS` (25s, inside the route's
+  30s `maxDuration`), and each attempt is clipped to what is left of it, so
+  retries cannot get the function killed mid-flight.
+
+`overpass.kumi.systems` was removed from `ENDPOINTS`: it is now a CNAME to
+`overpass.private.coffee`, which accepts the TCP connection and then never
+answers. `overpass.osm.ch` stays out for a subtler reason — it is fast and
+returns a cheerful 200, but holds Swiss data only, so a Singapore query gets
+zero elements, which reads as "nothing nearby" rather than as a failure to fall
+through.
+
+Hammering Overpass from one IP gets that IP temporarily blocked at the network
+level (TCP 443 stops opening). If every lookup starts failing with
+`TypeError: fetch failed` while other sites work, that is what happened; it
+clears on its own.
+
 Google Places was considered for search and rejected on cost risk, not quality.
 Its caps are weaker than they look: billing budgets only *alert*, Google's native
 hard spend caps do not yet cover Maps, and the Places API (New) documents only
@@ -150,6 +185,8 @@ Knobs worth turning:
 - Radius choices — `RADIUS_OPTIONS` in `eat-what.tsx` (API allows 200–5000 m).
 - Which places count as food — `AMENITIES` in `overpass.ts`.
 - Result cap — `MAX_RESULTS` in `overpass.ts`.
+- Lookup cache lifetime and size — `CACHE_TTL_MS` / `CACHE_MAX_ENTRIES` in `overpass.ts`.
+- How long to wait on a queued Overpass — `PRIMARY_TIMEOUT_MS` in `overpass.ts`.
 - Number of search matches offered — `MAX_MATCHES` in `geocode.ts`.
 - How aggressively duplicate matches collapse — `DUPLICATE_RADIUS_M` in `geocode.ts`.
 - Countries the search covers — `COUNTRY_CODES` in `nominatim.ts` (OneMap is
