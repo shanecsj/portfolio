@@ -1,3 +1,4 @@
+import { haversineMeters } from "./distance";
 import type { Place } from "./types";
 import { USER_AGENT } from "./user-agent";
 
@@ -80,25 +81,6 @@ function buildQuery(lat: number, lon: number, radiusMeters: number): string {
     `nwr[amenity~"^(${amenities})$"][name](around:${radiusMeters},${lat},${lon});`,
     `out center ${MAX_RESULTS};`,
   ].join("\n");
-}
-
-/** Metres between two coordinates, great-circle. */
-function haversineMeters(
-  fromLat: number,
-  fromLon: number,
-  toLat: number,
-  toLon: number,
-): number {
-  const EARTH_RADIUS_M = 6_371_000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-
-  const dLat = toRad(toLat - fromLat);
-  const dLon = toRad(toLon - fromLon);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(fromLat)) * Math.cos(toRad(toLat)) * Math.sin(dLon / 2) ** 2;
-
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
 }
 
 /** "fast_food" -> "Fast food". */

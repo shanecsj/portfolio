@@ -48,7 +48,10 @@ device's location, or any place you search for by name.
 | `src/app/api/eatwhat/route.ts` | `GET ?lat=&lon=&radius=` → `{ places, center, radiusMeters }`. |
 | `src/app/api/eatwhat/geocode/route.ts` | `GET ?q=` → `{ matches }`. Turns a typed place name into coordinates. |
 | `src/lib/eatwhat/overpass.ts` | Food lookup. **Swap this file to change providers.** |
-| `src/lib/eatwhat/nominatim.ts` | Location search. Swap independently of the food lookup. |
+| `src/lib/eatwhat/geocode.ts` | Location search. Merges the two geocoders below. |
+| `src/lib/eatwhat/nominatim.ts` | Geocoder: OpenStreetMap. Good at colloquial names. |
+| `src/lib/eatwhat/onemap.ts` | Geocoder: Singapore Land Authority. Good at addresses. |
+| `src/lib/eatwhat/distance.ts` | Haversine, shared by the food sort and the geocoder merge. |
 | `src/lib/eatwhat/types.ts` | `Place` and `LocationMatch` — the shapes providers normalise into. |
 | `src/lib/eatwhat/user-agent.ts` | Sent to both OSM services. Overpass 406s without it. |
 
@@ -75,31 +78,82 @@ hit, since one query can match several real places. Rows naming the same place a
 the same address are collapsed first — a mall mapped as a relation plus two nodes
 would otherwise appear three times, identically.
 
+### Why two geocoders
+
+`geocode.ts` queries OneMap and Nominatim in parallel and interleaves the results.
+They fail in opposite directions, which is the entire point:
+
+| Query | Nominatim | OneMap |
+| --- | --- | --- |
+| `530101` | nothing | 101 Hougang Avenue 1 |
+| `Kopitiam Bedok` | found it | nothing |
+| `Jewel` | 4 distinct places | 23 rows, all one estate |
+
+OneMap indexes registered premises, so it owns postcodes, HDB blocks, malls and
+MRT stations. OSM indexes whatever a mapper walked past, so it owns colloquial
+names and ranks by prominence — which is why Nominatim leads the interleave.
+Postcodes need no special case: Nominatim returns nothing for them, so OneMap
+fills the list on its own.
+
+Duplicates across the two are dropped when the names match *and* the coordinates
+are within `DUPLICATE_RADIUS_M` (250 m). Both conditions are needed — there is a
+Kopitiam in most estates, and those are genuinely different destinations.
+
+Either provider may fail without failing the search; the route only 502s when
+both are unreachable.
+
 ### Data sources
 
-Both are OpenStreetMap and both are keyless, so the feature works on a fresh clone
-with nothing configured:
+All three are free and cost nothing per call, so the feature works on a fresh
+clone with nothing configured:
 
 - [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API) for the food lookup.
 - [Nominatim](https://nominatim.org/) for location search.
+- [OneMap](https://www.onemap.gov.sg/apidocs/) for location search.
 
-The trade-off is crowd-sourced coverage: no ratings, no photos, opening hours
-usually missing, and both services are rate-limited (Overpass allows two
-concurrent slots per IP; Nominatim asks for at most one request per second, which
-is why the search box submits rather than querying per keystroke).
+The trade-off is crowd-sourced coverage on the OSM side: no ratings, no photos,
+opening hours usually missing, and both OSM services are rate-limited (Overpass
+allows two concurrent slots per IP; Nominatim asks for at most one request per
+second, which is why the search box submits rather than querying per keystroke).
 
-To move to Google Places or Foursquare, rewrite `fetchNearbyPlaces` in
-`overpass.ts` to return `Place[]`; nothing else needs to change. Location search
-swaps the same way via `searchLocations` in `nominatim.ts`. Put any key in a
-Vercel environment variable, never in the repo.
+Google Places was considered for search and rejected on cost risk, not quality.
+Its caps are weaker than they look: billing budgets only *alert*, Google's native
+hard spend caps do not yet cover Maps, and the Places API (New) documents only
+per-minute limits — 60/min sustained still reaches roughly $240/day. Bounding it
+properly would mean a KV-backed daily counter, a query cache and per-IP limiting,
+which is a lot of moving parts for a portfolio site. Revisit if coverage ever
+becomes the binding constraint; `searchLocations` is the single swap point.
+
+To move the food lookup to Google Places or Foursquare, rewrite `fetchNearbyPlaces`
+in `overpass.ts` to return `Place[]`; nothing else needs to change. Location search
+swaps the same way via `searchLocations` in `geocode.ts`. Put any key in a Vercel
+environment variable, never in the repo.
+
+#### OneMap credentials (optional)
+
+OneMap still answers unauthenticated, returning results with an
+`"Authentication token missing"` warning attached — which is why nothing is
+required to run this locally. That grace period is plainly closing, so set these
+in Vercel from a free account at [onemap.gov.sg](https://www.onemap.gov.sg/):
+
+```
+ONEMAP_EMAIL=you@example.com
+ONEMAP_PASSWORD=...
+```
+
+`onemap.ts` mints and caches a bearer token per serverless instance and refreshes
+it a minute before expiry. If the credentials are absent or the refresh fails it
+logs and falls back to searching unauthenticated — a degraded search beats none.
 
 Knobs worth turning:
 
 - Radius choices — `RADIUS_OPTIONS` in `eat-what.tsx` (API allows 200–5000 m).
 - Which places count as food — `AMENITIES` in `overpass.ts`.
 - Result cap — `MAX_RESULTS` in `overpass.ts`.
-- Number of search matches offered — `MAX_MATCHES` in `nominatim.ts`.
-- Countries the search covers — `COUNTRY_CODES` in `nominatim.ts`.
+- Number of search matches offered — `MAX_MATCHES` in `geocode.ts`.
+- How aggressively duplicate matches collapse — `DUPLICATE_RADIUS_M` in `geocode.ts`.
+- Countries the search covers — `COUNTRY_CODES` in `nominatim.ts` (OneMap is
+  Singapore-only by nature, so widening this leaves it contributing nothing).
 
 The whole list is sent to the browser and the random pick happens there, so
 "Try another" is instant and doesn't re-hit the upstream API.

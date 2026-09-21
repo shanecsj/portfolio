@@ -7,6 +7,10 @@ import { USER_AGENT } from "./user-agent";
  * The counterpart to `overpass.ts`: same project, same keyless deal, so the
  * manual-location fallback needs no more configuration than the main lookup.
  *
+ * Paired with `onemap.ts` rather than used alone — see that file for why. In
+ * short, OSM carries the colloquial names of places that were never a
+ * registered premises, and knows nothing about postcodes.
+ *
  * Nominatim's usage policy caps this at one request per second and asks for an
  * identifying User-Agent. The UI submits rather than searching per keystroke,
  * which is what keeps us inside that.
@@ -17,8 +21,12 @@ const ENDPOINT = "https://nominatim.openstreetmap.org/search";
 /** Geocoding is a single indexed lookup — far quicker than an Overpass scan. */
 const TIMEOUT_MS = 6_000;
 
-/** Enough to disambiguate without becoming a wall of options. */
-const MAX_MATCHES = 6;
+/**
+ * Deliberately more than the merged list shows: `geocode.ts` interleaves these
+ * with OneMap's and drops cross-provider duplicates, so it needs spare rows to
+ * draw on rather than a list already trimmed to final length.
+ */
+const MAX_MATCHES = 10;
 
 /**
  * ISO country codes the search is confined to. Unrestricted, Nominatim ranks
@@ -70,8 +78,9 @@ function toMatch(result: NominatimResult): LocationMatch | null {
 
   return {
     // osm_type/osm_id is absent for some synthesised results; place_id always
-    // exists and is unique, so it is the safer key.
-    id: String(result.place_id),
+    // exists and is unique, so it is the safer key. Namespaced because the
+    // merged list carries ids from both providers and uses them as React keys.
+    id: `osm:${result.place_id}`,
     name,
     context,
     lat,
@@ -97,11 +106,12 @@ function dedupe(matches: LocationMatch[]): LocationMatch[] {
 }
 
 /**
- * Locations matching a free-text query, best match first.
+ * Locations matching a free-text query, in Nominatim's own importance order.
  * Returns an empty array when nothing matches — that is a normal answer, not
- * an error. Throws only if Nominatim itself is unreachable.
+ * an error. Throws only if Nominatim itself is unreachable; `geocode.ts`
+ * tolerates that as long as the other provider answered.
  */
-export async function searchLocations(query: string): Promise<LocationMatch[]> {
+export async function searchNominatim(query: string): Promise<LocationMatch[]> {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -115,7 +125,7 @@ export async function searchLocations(query: string): Promise<LocationMatch[]> {
       format: "jsonv2",
       // Ask for extra: deduplication below can collapse several rows into one,
       // and we would rather still offer a full list afterwards.
-      limit: String(MAX_MATCHES * 2),
+      limit: String(MAX_MATCHES + 6),
       countrycodes: COUNTRY_CODES,
     });
     const response = await fetch(`${ENDPOINT}?${params}`, {

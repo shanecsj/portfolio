@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { searchLocations } from "@/lib/eatwhat/nominatim";
+import { searchLocations } from "@/lib/eatwhat/geocode";
 import type { ApiError, GeocodeResult } from "@/lib/eatwhat/types";
 
 /**
@@ -10,6 +10,9 @@ import type { ApiError, GeocodeResult } from "@/lib/eatwhat/types";
  * the page. Returns every plausible match; the visitor picks, because "Orchard
  * Road" and "Springfield" are genuinely ambiguous and guessing would be worse
  * than asking.
+ *
+ * `geocode.ts` fans out to OneMap and Nominatim together, so this only 502s
+ * when both are down.
  */
 
 export const maxDuration = 15;

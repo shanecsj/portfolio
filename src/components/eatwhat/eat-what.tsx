@@ -306,7 +306,7 @@ export function EatWhat() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Bishan, VivoCity, Orchard Road…"
+                placeholder="Bishan, VivoCity, 530101…"
                 autoComplete="off"
                 className="min-w-0 flex-1 rounded-lg border border-rule bg-canvas px-3 py-2 text-sm text-ink placeholder:text-faint"
               />
@@ -331,8 +331,8 @@ export function EatWhat() {
 
             {searchStatus === "done" && matches.length === 0 ? (
               <p className="mt-3 text-sm text-muted">
-                Nothing in Singapore matched that. Try an estate, MRT
-                station, mall, or postcode.
+                Nothing in Singapore matched that. Try an estate, MRT station,
+                mall, block number, or six-digit postcode.
               </p>
             ) : null}
 

@@ -27,11 +27,12 @@ export default function EatWhatPage() {
       <EatWhat />
 
       <p className="mt-12 border-t border-rule pt-6 text-xs leading-relaxed text-faint">
-        Places come from OpenStreetMap, via Overpass for the food lookup and
-        Nominatim for location search. Your coordinates are sent to this site
-        to run the lookup and are never stored. Listings are crowd-sourced, so
-        opening hours are usually missing and the occasional entry has closed
-        down — check before you walk.
+        Food places come from OpenStreetMap via Overpass. Location search asks
+        both OneMap, from the Singapore Land Authority, and OpenStreetMap&rsquo;s
+        Nominatim, so postcodes and block numbers work alongside place names.
+        Your coordinates are sent to this site to run the lookup and are never
+        stored. Listings are crowd-sourced, so opening hours are usually missing
+        and the occasional entry has closed down — check before you walk.
       </p>
     </div>
   );
