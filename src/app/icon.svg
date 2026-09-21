@@ -1,27 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Unown S">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Semicolon">
   <!--
-    Site icon: the letter S drawn in the style of Unown, the Pokémon whose
-    forms are letter-shaped glyphs, each "entirely black except its large white
-    eye with a small black pupil" and built by attaching strokes to that eye.
-    Drawn from scratch to that description rather than traced from official art.
+    Site icon: a black semicolon on a white disc.
 
-    Three things here are load-bearing at 16px, which is the size that actually
-    matters for a browser tab:
+    Sized for 16px, which is what a browser tab actually renders:
 
-    - The tile. A black glyph on a transparent background vanishes against dark
-      browser chrome — only the white eye survives. The near-white tile reads as
-      the backing on dark chrome and disappears into light chrome, so the glyph
-      is legible either way without needing a theme-aware icon (which Safari
-      ignores anyway).
-    - The eye sits at the free end of the top hook. Fusing it into the upper
-      bowl instead closes the counter and the whole thing reads as a "g".
-    - The white ring is wide relative to the pupil. At 16px it is the ring, not
-      the pupil, that says "eye" rather than "hole".
+    - The disc is pure white and full-bleed, so on dark browser chrome it reads
+      as the icon's silhouette, and on light chrome it melts into the bar and
+      leaves the glyph alone. Either way the semicolon stays black-on-white, so
+      no theme-aware variant is needed (Safari ignores those anyway).
+    - Both lobes are drawn far heavier than a typeset semicolon. At 16px each
+      13-unit lobe is barely 3px across; anything typographically correct would
+      thin to a smudge.
+    - The gap between them is 5 units — about a pixel at tab size. Closing it
+      any further fuses the two lobes into one vertical blob and the glyph stops
+      reading as punctuation.
+    - The tail tapers to a point rather than a blunt cut, which is what
+      distinguishes the lower lobe from the upper one once the tail itself is
+      too thin to resolve.
   -->
-  <rect width="64" height="64" rx="14" fill="#f4f4f3"/>
-  <path d="M45 21 C45 12 21 11 21 21 C21 29 43 31 43 41 C43 51 19 50 19 42"
-        fill="none" stroke="#17171a" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="45" cy="20" r="15" fill="#17171a"/>
-  <circle cx="45" cy="20" r="10" fill="#ffffff"/>
-  <circle cx="45" cy="20" r="4.2" fill="#17171a"/>
+  <circle cx="32" cy="32" r="32" fill="#ffffff"/>
+  <circle cx="32" cy="21" r="6.5" fill="#17171a"/>
+  <circle cx="32" cy="39" r="6.5" fill="#17171a"/>
+  <path d="M38.5 39 C38.5 45.5 34.2 50.5 27.4 52.8 C31.4 47.5 33 43.5 33 39 Z"
+        fill="#17171a"/>
 </svg>
