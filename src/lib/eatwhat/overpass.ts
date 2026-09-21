@@ -1,3 +1,4 @@
+import { toCuisineGroups } from "./cuisine";
 import { haversineMeters } from "./distance";
 import type { Place } from "./types";
 import { USER_AGENT } from "./user-agent";
@@ -176,6 +177,7 @@ function toPlace(
         .map((entry) => entry.trim())
         .filter(Boolean)
         .map(humanise) ?? [],
+    cuisineGroups: toCuisineGroups(element.tags?.cuisine),
     lat,
     lon,
     distanceMeters: haversineMeters(centerLat, centerLon, lat, lon),

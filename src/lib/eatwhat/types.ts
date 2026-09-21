@@ -9,8 +9,15 @@ export type Place = {
   name: string;
   /** Humanised amenity, e.g. "Cafe", "Fast food". */
   category: string;
-  /** Humanised cuisine tags. Often empty — OSM coverage is patchy. */
+  /** Humanised cuisine tags, for display. Often empty — OSM coverage is patchy. */
   cuisines: string[];
+  /**
+   * The same tags folded into filterable groups by `cuisine.ts`. Separate from
+   * `cuisines` because the raw values are far too numerous and too inconsistent
+   * to choose from, while these are stable enough to be a filter. Empty when
+   * the place is untagged or tagged only with something too vague to group.
+   */
+  cuisineGroups: string[];
   lat: number;
   lon: number;
   /** Straight-line metres from the search centre, not walking distance. */

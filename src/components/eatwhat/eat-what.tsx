@@ -1,7 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
+import {
+  applyFilters,
+  hasFilters,
+  NO_FILTERS,
+  toggle,
+  type Filters,
+} from "@/lib/eatwhat/filter";
 import { formatDistance, mapsUrl } from "@/lib/eatwhat/format";
+import { PlaceFilters } from "@/components/eatwhat/place-filters";
 import type {
   ApiError,
   GeocodeResult,
@@ -75,6 +83,10 @@ export function EatWhat() {
   const [places, setPlaces] = useState<Place[]>([]);
   const [pick, setPick] = useState<Place | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Kept across lookups: wanting a cafe is a standing preference, not a
+  // property of one search. Options are recomputed per result set, and a
+  // selection that no longer matches anything still renders, showing 0.
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
 
   // Manual location search.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -85,6 +97,8 @@ export function EatWhat() {
   const queryInput = useRef<HTMLInputElement>(null);
 
   const busy = status === "locating" || status === "searching";
+  /** What the randomiser is actually drawing from, after the chips. */
+  const pool = applyFilters(places, filters);
 
   function openSearch() {
     setSearchOpen(true);
@@ -128,7 +142,11 @@ export function EatWhat() {
       }
 
       setPlaces(found);
-      setPick(pickRandom(found, null));
+      // Filters survive the new lookup, so the first pick has to respect them.
+      // An empty pool is not an error — the places are there, the filter just
+      // excludes them — so it gets its own branch in the result area.
+      const pool = applyFilters(found, filters);
+      setPick(pool.length > 0 ? pickRandom(pool, null) : null);
       setStatus("ready");
     } catch {
       setError("Could not reach the server. Check your connection and retry.");
@@ -230,8 +248,21 @@ export function EatWhat() {
   }
 
   function handleReroll() {
-    if (places.length === 0) return;
-    setPick((current) => pickRandom(places, current));
+    const pool = applyFilters(places, filters);
+    if (pool.length === 0) return;
+    setPick((current) => pickRandom(pool, current));
+  }
+
+  /**
+   * Changing a filter re-picks immediately. Narrowing to "Japanese" is a
+   * request for somewhere Japanese, so leaving the previous suggestion sitting
+   * there would answer the wrong question — and the pool is already local, so
+   * it costs nothing.
+   */
+  function applyAndRepick(next: Filters) {
+    setFilters(next);
+    const pool = applyFilters(places, next);
+    setPick(pool.length > 0 ? pickRandom(pool, null) : null);
   }
 
   return (
@@ -371,6 +402,29 @@ export function EatWhat() {
         </div>
       ) : null}
 
+      {/* Only meaningful once there are results to describe, since every
+          option and count is derived from them. */}
+      {places.length > 0 ? (
+        <PlaceFilters
+          places={places}
+          filters={filters}
+          onToggleCategory={(value) =>
+            applyAndRepick({
+              ...filters,
+              categories: toggle(filters.categories, value),
+            })
+          }
+          onToggleCuisine={(value) =>
+            applyAndRepick({
+              ...filters,
+              cuisines: toggle(filters.cuisines, value),
+            })
+          }
+          onClear={() => applyAndRepick(NO_FILTERS)}
+          disabled={busy}
+        />
+      ) : null}
+
       <button
         type="button"
         onClick={handleEatWhat}
@@ -388,6 +442,25 @@ export function EatWhat() {
       <div aria-live="polite" className="mt-8">
         {status === "error" && error ? (
           <p className="text-sm leading-relaxed text-muted">{error}</p>
+        ) : null}
+
+        {status === "ready" && !pick ? (
+          <div className="rounded-xl border border-rule p-6">
+            <p className="text-sm leading-relaxed text-muted">
+              Nothing within {formatDistance(radius)}
+              {origin ? ` of ${originLabel(origin)}` : ""} matches that filter.
+              {places.length > 0
+                ? ` There ${places.length === 1 ? "is" : "are"} ${places.length} place${places.length === 1 ? "" : "s"} here without it.`
+                : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => applyAndRepick(NO_FILTERS)}
+              className="mt-4 rounded-lg border border-rule px-4 py-2 text-sm text-ink hover:border-ink"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : null}
 
         {status === "ready" && pick ? (
@@ -422,8 +495,10 @@ export function EatWhat() {
             </div>
 
             <p className="mt-5 font-mono text-xs text-faint">
-              picked from {places.length} place
-              {places.length === 1 ? "" : "s"} within {formatDistance(radius)}
+              picked from {pool.length}
+              {hasFilters(filters) ? ` of ${places.length}` : ""} place
+              {pool.length === 1 && !hasFilters(filters) ? "" : "s"} within{" "}
+              {formatDistance(radius)}
               {origin ? ` of ${originLabel(origin)}` : ""}
             </p>
           </div>

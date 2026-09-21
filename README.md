@@ -51,7 +51,10 @@ device's location, or any place you search for by name.
 | `src/lib/eatwhat/geocode.ts` | Location search. Merges the two geocoders below. |
 | `src/lib/eatwhat/nominatim.ts` | Geocoder: OpenStreetMap. Good at colloquial names. |
 | `src/lib/eatwhat/onemap.ts` | Geocoder: Singapore Land Authority. Good at addresses. |
+| `src/components/eatwhat/place-filters.tsx` | The two rows of chips that narrow the pick. |
 | `src/lib/eatwhat/distance.ts` | Haversine, shared by the food sort and the geocoder merge. |
+| `src/lib/eatwhat/filter.ts` | Filter logic: options, counts, and applying a selection. |
+| `src/lib/eatwhat/cuisine.ts` | Folds OSM's 1,911 cuisine values into ~20 filterable groups. |
 | `src/lib/eatwhat/types.ts` | `Place` and `LocationMatch` — the shapes providers normalise into. |
 | `src/lib/eatwhat/user-agent.ts` | Sent to both OSM services. Overpass 406s without it. |
 
@@ -101,6 +104,41 @@ Kopitiam in most estates, and those are genuinely different destinations.
 
 Either provider may fail without failing the search; the route only 502s when
 both are unreachable.
+
+### Narrowing the pick
+
+Two rows of chips — type (the OSM `amenity`) and cuisine — filter the pool the
+randomiser draws from. Both run in the browser over the places already fetched,
+so refining costs no Overpass slot and is as instant as a reroll. Within a row
+any selection matches; across rows both must.
+
+Options are derived from the results rather than hardcoded, which matters for
+three reasons: a chip never offers something the neighbourhood cannot deliver,
+the counts expose how thin the data is before you trust it, and the list follows
+whatever is around. A selection that stops matching is still rendered, showing
+0, so a filter carried over from a previous search can never be applied but
+invisible.
+
+**Cuisine is the unreliable half, by nature.** OSM tags it on about 44% of
+restaurants, 49% of cafes and 4.8% of food courts — measured at 50% across a
+240-place live sample — so filtering by it always hides real matches. The UI
+states the tagged share (`tagged on 34 of 80`) instead of pretending otherwise.
+Type has no such problem: it is what the Overpass query selects on, so coverage
+is 100% by construction.
+
+The raw tag is unusable as a filter, which is what `cuisine.ts` exists for. The
+regional extract carries 1,911 distinct values whose top 50 cover only 81%, and
+they mix nationality (`chinese`), dish (`burger`), venue (`coffee_shop`), drink
+(`bubble_tea`) and the merely vague (`local`, `asian`). They are also
+semicolon-separated lists, so the useful unit is the atom: splitting the top 250
+values gives 111 atoms covering 99.6%, which is what the group map is built
+from. On the live sample it grouped 97% of tagged places. Anything unrecognised
+or too vague produces no group — the place stays in the pool and is only ever
+excluded by an active filter, never hidden by one it should have matched.
+
+Adding a cuisine value means finding the group it belongs to in `GROUPS`.
+Values judged too vague to filter on are listed in `TOO_VAGUE` rather than
+simply omitted, so the omission reads as a decision.
 
 ### Data sources
 
@@ -189,6 +227,7 @@ Knobs worth turning:
 - How long to wait on a queued Overpass — `PRIMARY_TIMEOUT_MS` in `overpass.ts`.
 - Number of search matches offered — `MAX_MATCHES` in `geocode.ts`.
 - How aggressively duplicate matches collapse — `DUPLICATE_RADIUS_M` in `geocode.ts`.
+- Cuisine groups, and which OSM values feed them — `GROUPS` in `cuisine.ts`.
 - Countries the search covers — `COUNTRY_CODES` in `nominatim.ts` (OneMap is
   Singapore-only by nature, so widening this leaves it contributing nothing).
 
