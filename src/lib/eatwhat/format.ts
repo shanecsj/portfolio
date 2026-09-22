@@ -38,6 +38,45 @@ export function formatBandFrom(band: TravelBand, label: string | null): string {
 }
 
 /**
+ * OSM's `opening_hours` tidied into something readable, or null.
+ *
+ * The tag is a small language of its own and most values are simple — "24/7",
+ * "Mo-Su 11:00-22:00", a bare "10:30-23:00" — so the common shapes get a
+ * friendlier form and anything more elaborate is shown verbatim rather than
+ * mangled. No attempt is made to work out whether the place is open *now*:
+ * that needs a full parser, and the underlying data is a fifth-covered and
+ * often years old, so a confident "Open now" would be a lie dressed as a fact.
+ */
+export function formatOpeningHours(raw: string | null): string | null {
+  if (!raw) return null;
+  const value = raw.trim();
+  if (!value) return null;
+
+  if (value === "24/7") return "Open 24 hours";
+
+  // An en dash reads better than a hyphen between times, everywhere it appears.
+  const dashed = value.replace(/(\d)\s*-\s*(\d)/g, "$1–$2");
+
+  // "Mo-Su 11:00-22:00" is just "every day".
+  const everyDay = dashed.match(/^Mo\s*[–-]\s*Su\s+(.+)$/i);
+  if (everyDay) return `Daily ${everyDay[1]}`;
+
+  return dashed;
+}
+
+/**
+ * The place on openstreetmap.org, so anyone who finds it shut can fix it.
+ *
+ * Ids are stored with a one-letter type prefix, which is what the URL needs
+ * spelled out.
+ */
+export function osmUrl(place: Place): string {
+  const types: Record<string, string> = { n: "node", w: "way", r: "relation" };
+  const type = types[place.id[0]] ?? "node";
+  return `https://www.openstreetmap.org/${type}/${place.id.slice(1)}`;
+}
+
+/**
  * Directions to the place, by the travel mode that was chosen.
  *
  * Picking "by MRT" is a statement about how you intend to get there, so the

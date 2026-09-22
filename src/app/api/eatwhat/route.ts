@@ -1,22 +1,20 @@
 import type { NextRequest } from "next/server";
-import { fetchNearbyPlaces } from "@/lib/eatwhat/overpass";
+import { findNearbyPlaces } from "@/lib/eatwhat/places";
 import type { ApiError, NearbyPlacesResult } from "@/lib/eatwhat/types";
 
 /**
  * GET /api/eatwhat?lat=&lon=&radius=&min=
  *
  * Returns every nearby food place; the client does the randomising so that
- * "try another" is instant and doesn't re-hit the upstream API.
+ * "try another" is instant and doesn't re-hit the API.
  *
  * Route handlers are uncached by default, which is what we want — the answer
  * depends entirely on the caller's coordinates.
+ *
+ * No `maxDuration` override any more. It was 30s to survive a queued Overpass;
+ * the lookup is now a filter over an in-memory array and answers in about a
+ * millisecond, so the platform default is far more than enough.
  */
-
-/**
- * Vercel's default function budget is 10s, which is tight when the free
- * Overpass instance queues us and we fall through to the second endpoint.
- */
-export const maxDuration = 30;
 
 const DEFAULT_RADIUS_M = 1000;
 /** Low enough for the walkable band, whose outer edge is only 300 m. */
@@ -27,7 +25,7 @@ function badRequest(message: string) {
   return Response.json({ error: message } satisfies ApiError, { status: 400 });
 }
 
-export async function GET(request: NextRequest) {
+export function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const lat = Number(params.get("lat"));
   const lon = Number(params.get("lon"));
@@ -55,31 +53,16 @@ export async function GET(request: NextRequest) {
     return badRequest("`min` must be a number between 0 and `radius`.");
   }
 
-  try {
-    const { places, totalFound } = await fetchNearbyPlaces(
-      lat,
-      lon,
-      radius,
-      min,
-    );
-    return Response.json({
-      places,
-      center: { lat, lon },
-      minMeters: min,
-      radiusMeters: radius,
-      totalFound,
-    } satisfies NearbyPlacesResult);
-  } catch (error) {
-    console.error("[eatwhat] lookup failed", error);
-    return Response.json(
-      {
-        // Almost always rate-limiting on the free Overpass instance rather
-        // than anything wrong on our side, so the advice is "wait", not "retry
-        // harder".
-        error:
-          "The places service is busy right now — give it a few seconds and try again.",
-      } satisfies ApiError,
-      { status: 502 },
-    );
-  }
+  // No try/catch and no 502: there is nothing left to fail. The data ships
+  // with the deployment, so the only remaining error is a bad request, which
+  // is handled above.
+  const { places, totalFound } = findNearbyPlaces(lat, lon, radius, min);
+
+  return Response.json({
+    places,
+    center: { lat, lon },
+    minMeters: min,
+    radiusMeters: radius,
+    totalFound,
+  } satisfies NearbyPlacesResult);
 }

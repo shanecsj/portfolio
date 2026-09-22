@@ -22,6 +22,17 @@ export type Place = {
   lon: number;
   /** Straight-line metres from the search centre, not walking distance. */
   distanceMeters: number;
+  /**
+   * Raw OSM `opening_hours`, or null. Present on about a fifth of places, so
+   * absence is the normal case and means "unknown", never "closed".
+   */
+  openingHours: string | null;
+  /**
+   * When OSM last heard anything about this place — a survey date if one was
+   * recorded, otherwise the last edit. Shown because the data is crowd-sourced
+   * and a long-untouched entry is the one most likely to have shut.
+   */
+  lastConfirmed: string | null;
 };
 
 export type NearbyPlacesResult = {

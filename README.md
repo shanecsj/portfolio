@@ -47,7 +47,10 @@ device's location, or any place you search for by name.
 | `src/components/eatwhat/eat-what.tsx` | The only client code — geolocation, search, fetch, randomising. |
 | `src/app/api/eatwhat/route.ts` | `GET ?lat=&lon=&radius=` → `{ places, center, radiusMeters }`. |
 | `src/app/api/eatwhat/geocode/route.ts` | `GET ?q=` → `{ matches }`. Turns a typed place name into coordinates. |
-| `src/lib/eatwhat/overpass.ts` | Food lookup. **Swap this file to change providers.** |
+| `src/lib/eatwhat/places.ts` | Food lookup, served from the built-in dataset. |
+| `src/data/singapore-places.ts` | Generated. Every food place in Singapore. Do not hand-edit. |
+| `.github/workflows/refresh-places.yml` | Monthly job that regenerates the dataset. |
+| `scripts/build-places.mjs` | Regenerates that dataset. `npm run build:places`. |
 | `src/lib/eatwhat/geocode.ts` | Location search. Merges the two geocoders below. |
 | `src/lib/eatwhat/nominatim.ts` | Geocoder: OpenStreetMap. Good at colloquial names. |
 | `src/lib/eatwhat/onemap.ts` | Geocoder: Singapore Land Authority. Good at addresses. |
@@ -57,7 +60,7 @@ device's location, or any place you search for by name.
 | `src/lib/eatwhat/travel.ts` | The four travel modes and the distance band each means. |
 | `src/lib/eatwhat/cuisine.ts` | Folds OSM's 1,911 cuisine values into ~20 filterable groups. |
 | `src/lib/eatwhat/types.ts` | `Place` and `LocationMatch` — the shapes providers normalise into. |
-| `src/lib/eatwhat/user-agent.ts` | Sent to both OSM services. Overpass 406s without it. |
+| `src/lib/eatwhat/user-agent.ts` | Identifies us to Nominatim, whose policy asks for it. |
 
 ### Where the location comes from
 
@@ -137,23 +140,112 @@ about how you intend to get there, so the link honours it.
 
 ### Sampling dense areas
 
-`MAX_RESULTS` (150) is applied here, not by Overpass. `out center 80` used to do
-it, but Overpass applies a limit in its own order — roughly element id, so by
-when a place was mapped — which is a bias rather than a sample, and it was
-already biting before any of this: Orchard within 500 m holds 142 places and the
-old code kept an arbitrary 80.
+`MAX_RESULTS` (150) caps what is sent to the browser, and the trim is a
+**uniform random sample, not the nearest N**. For a band those are very
+different: the 1.5–3 km ring around Orchard holds over two thousand places, and
+its nearest 150 all sit within metres of the 1.5 km floor, so "nearest" would
+collapse the band back to its inner edge. Measured over that ring, the sample
+gives a median of 2,560 m reaching 2,995 m, against nearest-150's median of
+1,779 m never passing 1,883 m. When sampling happens the result line says
+`sampled from 2,231 nearby`, so the count beside it is not mistaken for
+everything out there.
 
-So the query is now unlimited and the trim happens where distance is known. The
-worst case measured, Orchard within 3 km, is 2,663 elements and 912 KB, which
-Overpass answers in about 3.5s; only the trimmed set crosses the wire, at roughly
-50 KB.
+### Why the data ships with the site
 
-The trim is a **uniform random sample, not the nearest N**. For a band those are
-very different: the 1.5–3 km ring around Orchard holds thousands, and its nearest
-150 all sit within metres of the 1.5 km floor, so "nearest" would collapse the
-band back to its inner edge. When sampling happens the result line says
-`sampled from 2,238 nearby`, so the count above it is not mistaken for everything
-out there.
+Querying Overpass per request does not work from Vercel, and the symptom was
+"The places service is busy" on most lookups. Overpass allows **two concurrent
+slots per IP**, and Vercel's egress addresses are shared across many projects,
+so we were competing for a budget we do not control. Measured against
+production:
+
+| Band | Result |
+| --- | --- |
+| Walkable (300 m, smallest) | 502 after 20.6s |
+| By bus (800 m) | 200, but 23.5s for 137 places |
+| By MRT (1.5 km) | 502 after 21.4s |
+| By car (3 km, heaviest) | 200 in 8.8s |
+
+The *smallest* query failing while the largest succeeded is what ruled out
+query weight. Caching helped only the second visitor to a given spot — repeats
+came back in 0.3s against 8.7s cold — and every visitor searching somewhere new
+paid the cold price. Timeouts and retries had already been tuned once for this
+and it was not enough, because the constraint is not ours to tune.
+
+Singapore is small enough to sidestep it entirely: the whole country holds about
+**9,000 food places**, roughly 600 KB, so it is fetched once by
+`scripts/build-places.mjs` and compiled into the deployment. A lookup is now a
+filter over an in-memory array — **2.7–15 ms, no network call, no rate limit, no
+failure mode.** The route handler has no try/catch and no 502 left in it,
+because nothing can fail but a malformed request.
+
+Two details in the generated file are load-bearing. It is a `.ts` module
+exporting one tab-separated **string**, not JSON or an array literal, because
+TypeScript would otherwise infer a literal type per row and 9,000 of those makes
+`tsc` crawl; the `: string` annotation stops the literal type being retained.
+And the script refuses to write a result below 5,000 places, so a truncated
+Overpass answer fails the refresh instead of quietly gutting the site.
+
+The trade is staleness. `.github/workflows/refresh-places.yml` rebuilds monthly
+from GitHub's runners, so the refresh does not spend production's rate limit,
+and the page states the snapshot date. The script queries one amenity at a time
+— `out meta` over all 9,000 at once returns 504 — paces the seven queries, and
+retries a busy Overpass with increasing backoff, because a refresh that dies on
+one transient 429 is a refresh that silently stops happening. Restaurants open and close far more
+slowly than a month, which is well inside the error crowd-sourced listings
+already carry. Run `npm run build:places` to refresh by hand.
+
+Cuisine groups are derived at read time rather than stored, so revising
+`cuisine.ts` takes effect without regenerating the data.
+
+### Closed places, and why they persist
+
+The common complaint is being sent somewhere that shut. Google Maps often
+knows; our data does not. Three things were measured before settling on what
+to do:
+
+- **OSM barely marks closures.** Of 9,000 Singapore entries, exactly **3**
+  carried any closure tag. The usual way to retire a place is the lifecycle
+  prefix `disused:amenity=restaurant`, and those never match our
+  `[amenity=...]` filter in the first place. `build-places.mjs` drops the
+  leftovers anyway — an entry carrying both a live `amenity` and a `disused:`
+  or `was:` key is a half-finished edit, not somewhere to send anyone.
+- **The real signal is staleness.** Restaurants were last edited a median of
+  **3.1 years** ago, and **31% not in 5+ years** (oldest 17). That bucket is
+  where closed places live, but a long-untouched entry is just as likely to be
+  a hawker stall that has been fine since 2012 and never needed an edit, so it
+  cannot be filtered on without deleting real places.
+- **Overture does not help here, despite the schema.** Its places theme
+  documents `operating_status` with a `permanently_closed` value and a
+  `confidence` of 0 for those. Queried for the Singapore bbox it returns
+  144,351 places of which **144,297 have a null status, 51 `open`, and 3
+  `permanently_closed`** — and no confidence values of 0 at all. The field
+  exists; the data does not populate it. Foursquare OS Places carries
+  `date_closed`, but its S3 paths are not anonymously readable and the
+  HuggingFace mirror is now gated. **Do not spend another afternoon on this
+  without re-checking those numbers first.**
+
+So there is no free dataset that knows Singapore closures. What the site does
+instead is refuse to pretend: the result card shows when OSM last confirmed the
+place and links straight to it, so a visitor who finds it shut can fix the map
+in one click and it disappears at the next refresh. Detecting closures properly
+would mean Google's `businessStatus` (Pro tier, 5,000 free calls/month) and the
+billing account that comes with it.
+
+### Opening hours
+
+Shown when OSM has them, which is **21.7%** of places — hours are absent far
+more often than present, so a blank line means unknown and never closed, which
+is why there is no "hours unavailable" text.
+
+`formatOpeningHours` tidies the common shapes (`24/7` → "Open 24 hours",
+`Mo-Su 11:00-22:00` → "Daily 11:00–22:00") and prints anything more elaborate
+verbatim rather than mangling it. It deliberately does **not** compute "open
+now": that needs a full parser for OSM's opening-hours language, and against
+data that is a fifth-covered and often years old a confident "Open now" would
+be a lie dressed as a fact.
+
+Google is the only source here with real hours, at Enterprise tier — 1,000 free
+calls/month, then up to $40/1,000, five times tighter than `businessStatus`.
 
 ### Narrowing the pick
 
@@ -192,52 +284,19 @@ simply omitted, so the omission reads as a decision.
 
 ### Data sources
 
-All three are free and cost nothing per call, so the feature works on a fresh
-clone with nothing configured:
+All free and cost nothing per call, so the feature works on a fresh clone with
+nothing configured:
 
-- [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API) for the food lookup.
+- [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API) for the food
+  dataset — at build time only, never per request. See above.
 - [Nominatim](https://nominatim.org/) for location search.
 - [OneMap](https://www.onemap.gov.sg/apidocs/) for location search.
 
 The trade-off is crowd-sourced coverage on the OSM side: no ratings, no photos,
-opening hours usually missing, and both OSM services are rate-limited (Overpass
-allows two concurrent slots per IP; Nominatim asks for at most one request per
-second, which is why the search box submits rather than querying per keystroke).
-
-#### Surviving Overpass
-
-Overpass is the flakiest part of the feature, and "The places service is busy"
-almost always traces back to its two-slots-per-IP limit. Four things in
-`overpass.ts` exist purely to absorb that, all of them worth knowing before
-touching the timeouts:
-
-- **It queues rather than refuses.** Passing the slot limit makes Overpass hold
-  the connection until a slot frees, so a slow answer is usually an answer on
-  its way. The per-endpoint timeout was once 8s, which measured 9.2s on a
-  queued request that then succeeded — it was discarding results it had already
-  waited most of the way for. The primary now gets 12s.
-- **Results are cached** for 30 minutes, keyed on the centre rounded to ~11 m
-  plus the radius, with distances recomputed from the caller's true position on
-  a hit. Repeat lookups cost no rate-limit slot at all.
-- **429/503/504 trigger a backoff and retry** of the primary, not a fallthrough
-  to the other endpoints. `lz4.` and `z.` are the same project behind the same
-  per-IP limit, so after a 429 they only time out — that path used to cost 14s
-  to learn nothing.
-- **The whole lookup is bounded** by `TOTAL_BUDGET_MS` (25s, inside the route's
-  30s `maxDuration`), and each attempt is clipped to what is left of it, so
-  retries cannot get the function killed mid-flight.
-
-`overpass.kumi.systems` was removed from `ENDPOINTS`: it is now a CNAME to
-`overpass.private.coffee`, which accepts the TCP connection and then never
-answers. `overpass.osm.ch` stays out for a subtler reason — it is fast and
-returns a cheerful 200, but holds Swiss data only, so a Singapore query gets
-zero elements, which reads as "nothing nearby" rather than as a failure to fall
-through.
-
-Hammering Overpass from one IP gets that IP temporarily blocked at the network
-level (TCP 443 stops opening). If every lookup starts failing with
-`TypeError: fetch failed` while other sites work, that is what happened; it
-clears on its own.
+opening hours usually missing. Nominatim asks for at most one request per
+second, which is why the search box submits rather than querying per keystroke;
+it is the only service still called at request time, and a single indexed
+geocode is a far lighter ask than the food scan ever was.
 
 Google Places was considered for search and rejected on cost risk, not quality.
 Its caps are weaker than they look: billing budgets only *alert*, Google's native
@@ -247,8 +306,8 @@ properly would mean a KV-backed daily counter, a query cache and per-IP limiting
 which is a lot of moving parts for a portfolio site. Revisit if coverage ever
 becomes the binding constraint; `searchLocations` is the single swap point.
 
-To move the food lookup to Google Places or Foursquare, rewrite `fetchNearbyPlaces`
-in `overpass.ts` to return `Place[]`; nothing else needs to change. Location search
+To move the food lookup to Google Places or Foursquare, rewrite `findNearbyPlaces`
+in `places.ts` to return `NearbyPlaces`; nothing else needs to change. Location search
 swaps the same way via `searchLocations` in `geocode.ts`. Put any key in a Vercel
 environment variable, never in the repo.
 
@@ -271,10 +330,10 @@ logs and falls back to searching unauthenticated — a degraded search beats non
 Knobs worth turning:
 
 - Travel modes and their bands — `TRAVEL_BANDS` in `travel.ts` (API allows 100–5000 m).
-- Which places count as food — `AMENITIES` in `overpass.ts`.
-- How many places are sampled and sent — `MAX_RESULTS` in `overpass.ts`.
-- Lookup cache lifetime and size — `CACHE_TTL_MS` / `CACHE_MAX_ENTRIES` in `overpass.ts`.
-- How long to wait on a queued Overpass — `PRIMARY_TIMEOUT_MS` in `overpass.ts`.
+- How many places are sampled and sent — `MAX_RESULTS` in `places.ts`.
+- Which places count as food in the dataset — `AMENITIES` in `build-places.mjs`
+  (rerun `npm run build:places` after changing it).
+- How often the dataset refreshes — the cron in `.github/workflows/refresh-places.yml`.
 - Number of search matches offered — `MAX_MATCHES` in `geocode.ts`.
 - How aggressively duplicate matches collapse — `DUPLICATE_RADIUS_M` in `geocode.ts`.
 - Cuisine groups, and which OSM values feed them — `GROUPS` in `cuisine.ts`.

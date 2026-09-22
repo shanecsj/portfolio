@@ -13,6 +13,8 @@ import {
   formatBand,
   formatBandFrom,
   formatDistance,
+  formatOpeningHours,
+  osmUrl,
 } from "@/lib/eatwhat/format";
 import {
   bandFor,
@@ -500,6 +502,15 @@ export function EatWhat() {
               {formatDistance(pick.distanceMeters)} away
             </p>
 
+            {/* OSM records opening hours for about a fifth of places, so most
+                picks show nothing here. Absence means unknown, never closed,
+                which is why there is no "hours unavailable" line. */}
+            {formatOpeningHours(pick.openingHours) ? (
+              <p className="mt-1 text-sm text-muted">
+                {formatOpeningHours(pick.openingHours)}
+              </p>
+            ) : null}
+
             <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
               <button
                 type="button"
@@ -524,7 +535,27 @@ export function EatWhat() {
               ) : null}
             </div>
 
-            <p className="mt-5 font-mono text-xs text-faint">
+            {/* The honest caveat, next to the thing it qualifies. Listings are
+                crowd-sourced and a long-untouched one is the likeliest to have
+                shut — which is the common complaint — so the age is shown and
+                fixing it is one click away. */}
+            <p className="mt-5 text-xs leading-relaxed text-faint">
+              {pick.lastConfirmed
+                ? `OpenStreetMap last confirmed this on ${pick.lastConfirmed}. `
+                : ""}
+              Closed or moved?{" "}
+              <a
+                href={osmUrl(pick)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent hover:underline"
+              >
+                Fix it on OSM
+              </a>{" "}
+              and it will be gone from here at the next refresh.
+            </p>
+
+            <p className="mt-3 font-mono text-xs text-faint">
               picked from {pool.length}
               {hasFilters(filters) ? ` of ${places.length}` : ""} place
               {pool.length === 1 && !hasFilters(filters) ? "" : "s"}{" "}

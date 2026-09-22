@@ -1,0 +1,45 @@
+# Keeps src/data/singapore-places.ts in step with OpenStreetMap.
+#
+# The dataset ships with the deployment rather than being queried per request,
+# because Overpass rate-limits per IP and Vercel's egress addresses are shared
+# — see src/lib/eatwhat/places.ts. The trade is staleness, and this is what
+# pays it off. Monthly is ample: restaurants open and close far more slowly
+# than that, and a month-old listing is well inside the error the crowd-sourced
+# data already carries.
+#
+# Runs from GitHub's runners, so it does not spend the production rate limit.
+name: Refresh places dataset
+
+on:
+  schedule:
+    # 03:00 UTC on the 1st — 11am Singapore, nothing depends on the timing.
+    - cron: "0 3 1 * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The script refuses to write a suspiciously small result, so a
+      # truncated Overpass answer fails here rather than gutting the site.
+      - name: Rebuild the dataset
+        run: npm run build:places
+
+      - name: Commit if anything changed
+        run: |
+          if git diff --quiet -- src/data/singapore-places.ts; then
+            echo "No change — OSM has nothing new for us."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/singapore-places.ts
+          git commit -m "Refresh the Singapore places dataset"
+          git push

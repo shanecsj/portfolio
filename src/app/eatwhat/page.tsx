@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EatWhat } from "@/components/eatwhat/eat-what";
+import { DATASET } from "@/lib/eatwhat/places";
 
 export const metadata: Metadata = {
   title: "Eat what?",
@@ -27,12 +28,15 @@ export default function EatWhatPage() {
       <EatWhat />
 
       <p className="mt-12 border-t border-rule pt-6 text-xs leading-relaxed text-faint">
-        Food places come from OpenStreetMap via Overpass. Location search asks
-        both OneMap, from the Singapore Land Authority, and OpenStreetMap&rsquo;s
-        Nominatim, so postcodes and block numbers work alongside place names.
-        Your coordinates are sent to this site to run the lookup and are never
-        stored. Listings are crowd-sourced, so opening hours are usually missing
-        and the occasional entry has closed down — check before you walk.
+        Food places come from OpenStreetMap — all {DATASET.count.toLocaleString()}{" "}
+        of them in Singapore, built into the site as of {DATASET.generated} and
+        refreshed monthly, which is why the lookup is instant. Location search
+        asks both OneMap, from the Singapore Land Authority, and
+        OpenStreetMap&rsquo;s Nominatim, so postcodes and block numbers work
+        alongside place names. Your coordinates are used to run the lookup and
+        are never stored. Listings are crowd-sourced and a month may have
+        passed, so opening hours are usually missing and the occasional entry
+        has closed down — check before you walk.
       </p>
     </div>
   );
