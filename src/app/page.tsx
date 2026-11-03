@@ -2,6 +2,7 @@ import { Section } from "@/components/resume/section";
 import { ExperienceEntry } from "@/components/resume/experience-entry";
 import { EducationEntry } from "@/components/resume/education-entry";
 import { resume } from "@/content/resume";
+import { MailIcon, linkIcon } from "@/components/icons";
 
 export default function ResumePage() {
   return (
@@ -13,27 +14,35 @@ export default function ResumePage() {
         <p className="mt-2 text-base text-muted">{resume.headline}</p>
 
         <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-faint">
-          <li>{resume.location}</li>
           <li>
             <a
               href={`mailto:${resume.email}`}
-              className="hover:text-accent hover:underline"
+              aria-label={`Email ${resume.email}`}
+              title={resume.email}
+              className="flex hover:text-brand"
             >
-              {resume.email}
+              <MailIcon className="size-5" />
             </a>
           </li>
-          {resume.links.map((link) => (
-            <li key={link.href}>
-              <a
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-accent hover:underline"
-              >
-                {link.label}
-              </a>
-            </li>
-          ))}
+          {resume.links.map((link) => {
+            const Icon = linkIcon(link.label);
+            return (
+              <li key={link.href}>
+                <a
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={Icon ? link.label : undefined}
+                  title={Icon ? link.label : undefined}
+                  className={
+                    Icon ? "flex hover:text-brand" : "hover:text-brand hover:underline"
+                  }
+                >
+                  {Icon ? <Icon className="size-[1.125rem]" /> : link.label}
+                </a>
+              </li>
+            );
+          })}
         </ul>
       </header>
 
@@ -65,7 +74,7 @@ export default function ResumePage() {
                       href={project.href}
                       target="_blank"
                       rel="noreferrer"
-                      className="decoration-rule underline-offset-4 hover:text-accent hover:decoration-accent hover:underline"
+                      className="decoration-rule underline-offset-4 hover:text-brand hover:decoration-brand hover:underline"
                     >
                       {project.name}
                     </a>

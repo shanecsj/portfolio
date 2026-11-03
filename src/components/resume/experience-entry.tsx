@@ -15,7 +15,7 @@ export function ExperienceEntry({ item }: { item: ExperienceItem }) {
               href={item.href}
               target="_blank"
               rel="noreferrer"
-              className="decoration-rule underline-offset-4 hover:text-accent hover:decoration-accent hover:underline"
+              className="decoration-rule underline-offset-4 hover:text-brand hover:decoration-brand hover:underline"
             >
               {item.org}
             </a>

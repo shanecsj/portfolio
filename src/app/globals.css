@@ -18,7 +18,6 @@
   --color-muted: var(--muted);
   --color-faint: var(--faint);
   --color-rule: var(--rule);
-  --color-accent: var(--accent);
   --color-brand: var(--brand);
 }
 
@@ -29,7 +28,6 @@
   --muted: #55555f;
   --faint: #8a8a94;
   --rule: #e3e3e6;
-  --accent: #1f4fd8;
   --brand: #015568;
 }
 
@@ -41,7 +39,6 @@
     --muted: #a2a2ad;
     --faint: #71717c;
     --rule: #26262d;
-    --accent: #86a9ff;
     /* #015568 only reaches 2.3:1 on this background. #4fb3c9 is the same hue
        lightened to 8.1:1, mirroring the light-mode ratio. */
     --brand: #4fb3c9;
@@ -62,13 +59,13 @@ body {
 }
 
 ::selection {
-  background-color: var(--accent);
+  background-color: var(--brand);
   color: var(--canvas);
 }
 
 /* Visible, consistent keyboard focus across every interactive element. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: 2px;
 }
