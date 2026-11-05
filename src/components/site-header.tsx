@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/config/nav";
 import { site } from "@/config/site";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -28,33 +29,36 @@ export function SiteHeader() {
           {site.handle}
         </Link>
 
-        {/* Hidden until there is more than one destination to choose between. */}
-        {NAV_ITEMS.length > 1 ? (
-          <ul className="flex items-center gap-5">
-            {NAV_ITEMS.map((item) => {
-              const active =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
+        <div className="flex items-center gap-5">
+          {/* Hidden until there is more than one destination to choose between. */}
+          {NAV_ITEMS.length > 1 ? (
+            <ul className="flex items-center gap-5">
+              {NAV_ITEMS.map((item) => {
+                const active =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
 
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={
-                      active
-                        ? "text-sm font-medium text-ink"
-                        : "text-sm text-muted hover:text-ink"
-                    }
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={
+                        active
+                          ? "text-sm font-medium text-ink"
+                          : "text-sm text-muted hover:text-ink"
+                      }
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+          <ThemeToggle />
+        </div>
       </nav>
     </header>
   );

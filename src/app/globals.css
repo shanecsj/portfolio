@@ -1,9 +1,25 @@
 @import "tailwindcss";
 
 /*
- * Theme tokens. Colours are declared once as CSS variables and swapped under
- * prefers-color-scheme, so components use plain `bg-canvas` / `text-ink`
- * utilities and get dark mode for free — no `dark:` variants to keep in sync.
+ * Dark mode follows <html data-theme>, which an inline script in the root
+ * layout sets before first paint (stored choice, else the OS preference) and
+ * the header toggle flips. Without JS, fall back to prefers-color-scheme.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
+/*
+ * Theme tokens. Colours are declared once as CSS variables and swapped with
+ * the theme, so components use plain `bg-canvas` / `text-ink` utilities and
+ * get dark mode for free — no `dark:` variants to keep in sync.
  */
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
@@ -22,6 +38,7 @@
 }
 
 :root {
+  color-scheme: light;
   --canvas: #fefefe;
   --surface: #f4f4f3;
   --ink: #17171a;
@@ -31,18 +48,41 @@
   --brand: #015568;
 }
 
+/* Dark tokens live on the explicit attribute, and on the no-JS fallback. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0b0b0d;
+  --surface: #15151a;
+  --ink: #ebebef;
+  --muted: #a2a2ad;
+  --faint: #71717c;
+  --rule: #26262d;
+  /* #015568 only reaches 2.3:1 on this background. #4fb3c9 is the same hue
+     lightened to 8.1:1, mirroring the light-mode ratio. */
+  --brand: #4fb3c9;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
+    color-scheme: dark;
     --canvas: #0b0b0d;
     --surface: #15151a;
     --ink: #ebebef;
     --muted: #a2a2ad;
     --faint: #71717c;
     --rule: #26262d;
-    /* #015568 only reaches 2.3:1 on this background. #4fb3c9 is the same hue
-       lightened to 8.1:1, mirroring the light-mode ratio. */
     --brand: #4fb3c9;
   }
+}
+
+/* Cross-fade colours while the theme flips; the class is added only for the
+   duration of a toggle so ordinary hovers keep their own timing. */
+html.theme-switching,
+html.theme-switching * {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease !important;
 }
 
 html {

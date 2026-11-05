@@ -43,9 +43,24 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+/**
+ * Runs inline in <head> before first paint so the page never flashes the
+ * wrong theme: the stored choice (see ThemeToggle) wins, else the OS setting.
+ */
+const themeInitScript = `(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${pacifico.variable}`}>
+    // suppressHydrationWarning: the init script sets data-theme on <html>
+    // before React hydrates, which would otherwise be reported as a mismatch.
+    <html
+      lang="en"
+      className={`${inter.variable} ${pacifico.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="flex min-h-dvh flex-col font-sans">
         <a
           href="#main"
