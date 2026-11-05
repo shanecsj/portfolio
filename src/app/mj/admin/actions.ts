@@ -30,7 +30,6 @@ export type ActionState = { error?: string; ok?: string } | null;
 function refresh() {
   revalidatePath("/mj");
   revalidatePath("/mj/admin");
-  revalidatePath("/mj/zhahu");
 }
 
 function isUniqueViolation(e: unknown): boolean {

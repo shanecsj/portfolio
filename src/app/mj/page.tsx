@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { MjTabs } from "@/components/mj/mj-tabs";
+import { MjBoards } from "@/components/mj/mj-boards";
 import { SessionList, netClass } from "@/components/mj/session-list";
+import { ZhaHuBoard, type ZhaHuRow } from "@/components/mj/zha-hu-board";
+import { isAdmin } from "@/lib/mj/auth";
 import { listPlayers, listSessions } from "@/lib/mj/db";
 import { formatCents } from "@/lib/mj/money";
 import { sessionGap, standings } from "@/lib/mj/stats";
+import type { Player, Session } from "@/lib/mj/types";
 
 // Reads the database on every request; there's nothing to prerender at build.
 export const dynamic = "force-dynamic";
@@ -29,22 +32,80 @@ function paleNetClass(cents: number): string {
   return "";
 }
 
+/**
+ * Both public boards (leaderboard and 诈胡) come from this one request; the
+ * tabs in MjBoards switch between them on the client without fetching.
+ */
 export default async function MjPage() {
-  const [players, sessions] = await Promise.all([listPlayers(), listSessions()]);
+  const [players, sessions, admin] = await Promise.all([
+    listPlayers(),
+    listSessions(),
+    isAdmin(),
+  ]);
+  const zhaHu = zhaHuRows(players);
+  const zhaHuTotal = players.reduce((sum, p) => sum + p.zhaHu, 0);
+
+  return (
+    <>
+      <MjBoards
+        boards={[
+          {
+            id: "leaderboard",
+            label: "Leaderboard",
+            meta: `${sessions.length} session${sessions.length === 1 ? "" : "s"}`,
+            content: <Leaderboard players={players} sessions={sessions} />,
+          },
+          {
+            id: "zhahu",
+            label: "诈胡",
+            meta: `${zhaHuTotal} 诈胡 so far`,
+            content: (
+              <section className="mt-8">
+                {zhaHu.length === 0 ? (
+                  <p className="text-sm text-muted">No players yet.</p>
+                ) : (
+                  <ZhaHuBoard rows={zhaHu} editable={admin} />
+                )}
+                {admin ? (
+                  <p className="mt-3 text-xs text-faint">
+                    You&rsquo;re signed in as admin, so you can adjust counts here.
+                  </p>
+                ) : null}
+              </section>
+            ),
+          },
+        ]}
+      />
+
+      <p className="mt-12 text-xs text-faint">
+        <Link href="/mj/admin" className="hover:text-muted">
+          Admin
+        </Link>
+      </p>
+    </>
+  );
+}
+
+/** Inactive players show only if they have a count. Ties share a rank (1, 2, 2, 4). */
+function zhaHuRows(players: Player[]): ZhaHuRow[] {
+  const sorted = players
+    .filter((p) => p.active || p.zhaHu > 0)
+    .sort((a, b) => b.zhaHu - a.zhaHu || a.name.localeCompare(b.name));
+  return sorted.map((p) => ({
+    id: p.id,
+    name: p.name,
+    count: p.zhaHu,
+    rank: sorted.findIndex((q) => q.zhaHu === p.zhaHu) + 1,
+  }));
+}
+
+function Leaderboard({ players, sessions }: { players: Player[]; sessions: Session[] }) {
   const rows = standings(players, sessions);
   const unbalanced = sessions.filter((s) => sessionGap(s) !== 0);
   const ledgerGap = unbalanced.reduce((sum, s) => sum + sessionGap(s), 0);
 
   return (
     <>
-      <header className="flex items-baseline justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">372A MJ</h1>
-        <p className="text-xs text-faint">
-          {sessions.length} session{sessions.length === 1 ? "" : "s"}
-        </p>
-      </header>
-      <MjTabs current="/mj" />
-
       {unbalanced.length > 0 ? (
         <p className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           ⚠ {unbalanced.length} session{unbalanced.length === 1 ? " doesn't" : "s don't"} sum
@@ -130,11 +191,6 @@ export default async function MjPage() {
         <SessionList sessions={sessions} players={players} />
       </section>
 
-      <p className="mt-12 text-xs text-faint">
-        <Link href="/mj/admin" className="hover:text-muted">
-          Admin
-        </Link>
-      </p>
     </>
   );
 }

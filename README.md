@@ -50,8 +50,8 @@ unless you tick "Save anyway"; it is then flagged ⚠ everywhere it appears.
 
 | Path | What it is |
 | --- | --- |
-| `src/app/mj/page.tsx` | Public board: leaderboard and session history. |
-| `src/app/mj/zhahu/page.tsx` | 诈胡 (zha hu, false win) count per player. Admin gets −/+ buttons. |
+| `src/app/mj/page.tsx` | Public boards in one response: leaderboard + session history, and 诈胡 (zha hu, false win) counts (admin gets −/+ buttons). Tabs switch client-side via `?tab=`. |
+| `src/app/mj/zhahu/page.tsx` | Redirects to `/mj?tab=zhahu` for old links. |
 | `src/app/mj/admin/page.tsx` | Login, or new-session form + player roster. |
 | `src/app/mj/admin/sessions/[id]/page.tsx` | Edit or delete one session. |
 | `src/app/mj/admin/actions.ts` | Server actions. Each re-checks the admin cookie. |

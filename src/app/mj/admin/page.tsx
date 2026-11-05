@@ -36,7 +36,7 @@ export default async function MjAdminPage({ searchParams }: PageProps<"/mj/admin
           <Link href="/mj" className="text-brand hover:underline">
             Leaderboard
           </Link>
-          <Link href="/mj/zhahu" className="text-brand hover:underline">
+          <Link href="/mj?tab=zhahu" className="text-brand hover:underline">
             诈胡
           </Link>
           <form action={logout}>
